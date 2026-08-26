@@ -5,7 +5,18 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"],
+      "env": [
+        "AUTH_SECRET",
+        "CONTROL_PLANE_ENCRYPTION_KEY",
+        "DATABASE_URL*",
+        "NEON_*",
+        "PG*",
+        "POSTGRES_*",
+        "TENANTS_HOST_*",
+        "VERCEL_OIDC_TOKEN",
+        "VITE_NEON_AUTH_URL"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]
