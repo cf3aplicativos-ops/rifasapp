@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum TenantEstado {
+  PROVISIONANDO
+  ACTIVO
+  SUSPENDIDO
+  ERROR
+}
+
+model Tenant {
+  id                      String       @id @default(cuid())
+  slug                    String       @unique
+  nombre                  String
+  connectionStringCifrado String?
+  estado                  TenantEstado @default(PROVISIONANDO)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+}
+
+model SuperAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  nombre       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
