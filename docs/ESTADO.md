@@ -38,9 +38,15 @@
 
 ## Próximo paso concreto
 
-1. Decidir con el usuario cómo crear el proyecto Neon "control-plane" (integración Vercel–Neon vs. cuenta Neon directa) y confirmar estado del dominio `rifaxapp.com`.
+1. **Preguntas pendientes de respuesta del usuario** (se le preguntó al cierre de esta sesión, aún sin responder):
+   - ¿Cómo crear el proyecto Neon "control-plane"? Opción A: integración nativa Vercel–Neon desde el dashboard del proyecto `rifaxapp-superadmin` (recomendada, 2-3 clics, inyecta el connection string solo). Opción B: cuenta Neon directa del usuario + pasar el connection string a mano.
+   - ¿Estado del dominio `rifaxapp.com`? ¿Ya comprado (¿en qué proveedor?) / falta comprarlo / decidir después. Mientras no se resuelva, seguir con las URLs `*.vercel.app` para desarrollo, sin bloquear Fases 1+ por esto.
 2. Con eso resuelto: configurar el wildcard `*.rifaxapp.com` en Vercel + rewrites de Multi Zones, cerrar el gate de Fase 0.
 3. Pasar a Fase 1: `packages/db-control` (schema Prisma `Tenant`/`SuperAdminUser`) + `apps/superadmin` (login superadmin, CRUD de tenants, provisioning). Con pruebas (unit del servicio de provisioning + Playwright del flujo crear-tenant) antes de cerrar la fase.
+
+## Cierre de sesión — 2026-08-25 (noche)
+
+Sesión pausada a pedido del usuario ("paremos acá y continuamos mañana"). No quedó nada a medias sin commitear — todo lo de esta sesión está pusheado a `main` (`1db1dc6`). Lo único pendiente es que el usuario responda las dos preguntas de arriba (Neon y dominio) para poder cerrar el gate de Fase 0. Quien retome: lee este archivo completo antes de tocar nada.
 
 ## Notas técnicas de arquitectura para quien retome
 
