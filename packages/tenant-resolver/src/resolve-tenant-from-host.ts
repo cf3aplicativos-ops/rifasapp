@@ -1,0 +1,46 @@
+import { getControlPrismaClient, TenantEstado } from "@rifaxapp/db-control";
+
+// Dominio base sin subdominio de tenant (dev: "localhost"; prod, una vez
+// exista el dominio: "rifaxapp.com" vía TENANT_BASE_DOMAIN). No basta con
+// contar labels del host — "rifaxapp.com" y "acme.rifaxapp.com" tienen que
+// distinguirse por el dominio base conocido, no por cantidad de puntos.
+const DEFAULT_BASE_DOMAIN = "localhost";
+
+function getBaseDomain(): string {
+  return process.env.TENANT_BASE_DOMAIN || DEFAULT_BASE_DOMAIN;
+}
+
+/**
+ * Extrae el subdominio de tenant de un host, dado el dominio base conocido
+ * (`getBaseDomain()`). "acme.localhost:3001" -> "acme" (dev). Una vez exista
+ * el dominio real, "acme.rifaxapp.com" -> "acme" con TENANT_BASE_DOMAIN=
+ * "rifaxapp.com". El host base solo (sin subdominio) -> null, no hay tenant.
+ */
+export function extractSlugFromHost(host: string, baseDomain: string = getBaseDomain()): string | null {
+  const hostname = (host.split(":")[0] ?? "").toLowerCase();
+  if (!hostname || hostname === baseDomain) return null;
+
+  const suffix = `.${baseDomain}`;
+  if (!hostname.endsWith(suffix)) return null;
+
+  const slug = hostname.slice(0, -suffix.length);
+  return slug || null;
+}
+
+export type ResolvedTenant = { id: string; slug: string };
+
+/**
+ * Resuelve el tenant a partir del header Host de la request. Solo devuelve
+ * un tenant si existe Y está ACTIVO — uno en PROVISIONANDO/ERROR no debe
+ * dejar loguearse a nadie todavía.
+ */
+export async function resolveTenantFromHost(host: string): Promise<ResolvedTenant | null> {
+  const slug = extractSlugFromHost(host);
+  if (!slug) return null;
+
+  const prisma = getControlPrismaClient();
+  const tenant = await prisma.tenant.findUnique({ where: { slug } });
+  if (!tenant || tenant.estado !== TenantEstado.ACTIVO) return null;
+
+  return { id: tenant.id, slug: tenant.slug };
+}

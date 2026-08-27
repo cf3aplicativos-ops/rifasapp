@@ -4,11 +4,11 @@
 
 ## Última actualización
 
-**2026-08-26** — Fase 2 completa: `packages/db-tenant` + `packages/tenant-resolver` + primer `TENANT_ADMIN` real al crear un tenant.
+**2026-08-26** — Fase 3 completa: `packages/auth` + login multi-rol y RBAC real en `apps/admin` (por subdominio, sin necesitar el dominio real).
 
 ## Fase actual
 
-**Fase 2 — schema de tenant + tenant-resolver** cerrada. Fase 0 y Fase 1 siguen cerradas (dominio pospuesto a pedido del usuario). Próxima: Fase 3 (RBAC/login multi-rol en `apps/admin`, resolución por Host + middleware real).
+**Fase 3 — packages/auth + RBAC en apps/admin** cerrada. Fases 0, 1 y 2 siguen cerradas (dominio pospuesto a pedido del usuario). Próxima: Fase 4 (a definir — `apps/vendedores`/`apps/clientes`, o diseño de `Rifa`/`Boleto`/`Venta` cuando haya reglas de negocio).
 
 ## Qué se completó en esta sesión
 
@@ -116,13 +116,42 @@
 - Playwright (`e2e/superadmin-tenant-flow.spec.ts`, extendido): ahora completa también el email del admin, verifica el banner de credenciales, y **se conecta directo por SQL a la DB del tenant recién creado** para confirmar que la fila `Usuario` con `rol = 'TENANT_ADMIN'` existe de verdad, antes de borrar el tenant. Requiere además `TENANTS_HOST_PGHOST`/`PGUSER`/`PGPASSWORD` en el entorno (antes solo hacía falta el seed del superadmin).
 - `next build` de producción vía Turbo (`db-control` → `db-tenant` → `superadmin`, en ese orden por el grafo de tareas) verde.
 
+## Fase 3 — packages/auth + login multi-rol y RBAC en apps/admin (2026-08-26)
+
+**Alcance acotado a propósito** (confirmado con el usuario): además de login/sesión, se sumó un CRUD real de `Sede` y una pantalla para que el `TENANT_ADMIN` invite un `Usuario` (`SEDE_ADMIN`/`VENDEDOR`) — así queda algo tangible para probar RBAC de punta a punta, no solo login. Queda **solo `apps/admin`**; `apps/vendedores`/`apps/clientes` para una fase futura. `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` siguen sin diseñarse (mismo criterio que Fase 2).
+
+**Cómo se resuelve el tenant por Host sin dominio real**: se toma el primer label del hostname contra un "dominio base" conocido (`TENANT_BASE_DOMAIN`, default `"localhost"`) — `resolveTenantFromHost`/`extractSlugFromHost` en `packages/tenant-resolver`. En dev, `<slug>.localhost:3001` resuelve solo a `127.0.0.1` en Chromium sin tocar `/etc/hosts`. Cuando exista el dominio real, alcanza con `TENANT_BASE_DOMAIN=rifaxapp.com`.
+
+**`packages/auth`** (nuevo, `@rifaxapp/auth`):
+- `src/tenant-auth-config.ts`: **config ESTÁTICA** de Auth.js (no una función perezosa por request) — ver el gotcha grande abajo sobre por qué. El `Credentials` provider recibe `tenantId` como un credential más (no lo resuelve él mismo).
+- `src/types.ts`: augmenta `Session`/`JWT` de Auth.js con `tenantId`/`sedeId`/`rol` (lo que pide `ARQUITECTURA.md`).
+- `src/rbac.ts`: `assertRole(session, roles)` — helper simple, sin DB, usado en cada Server Action TENANT_ADMIN-only.
+
+**El gotcha grande de esta fase — Host header no confiable dentro de Auth.js/Next.js internals**: se probó primero resolver el tenant DENTRO de una config perezosa de Auth.js (`NextAuth((request) => {...})`), leyendo `request.headers.get("host")`. Falló de forma intermitente y muy confusa — mismo host, a veces resuelve bien y a veces no, sin patrón aparente:
+- Al `signIn()` desde un Server Action, el `request` que Auth.js reconstruye internamente para procesar el credentials callback a veces trae el host **sin el subdominio** (`localhost:3001` en vez de `acme.localhost:3001`) — tanto vía `request.headers` como vía `next/headers`.
+- **Solución que funcionó**: dejar de resolver el tenant dentro de la config de Auth.js. En su lugar, `loginAction` (Server Action nuestra, contexto confiable) resuelve el tenant una sola vez con `headers()` y lo pasa **explícito** como credential (`tenantId`) a `signIn()`. La config de Auth.js quedó estática, sin request-awareness.
+- El **proxy/middleware** (`export { auth as proxy }`) tampoco puede hacer la consulta a la DB para resolver el tenant — se probó y falló también, de forma intermitente (proxy corre en un bundle/contexto aislado de Turbopack, separado del resto de la app; ver el build log: "Middleware" sale como un import trace distinto de "Server Component"/"App Route" para los mismos módulos). La solución: el proxy solo hace el check de sesión (optimista, sin DB, igual que `apps/superadmin`); la resolución de tenant por Host vive solo en `/login` (Server Component) y en `loginAction`, ambos contextos donde se comprobó que es confiable.
+- **Un tercer gotcha, más sutil**: incluso con todo lo anterior arreglado, el botón "Salir" (`signOut({ redirectTo: "/login" })` desde una Server Action) terminaba, de forma reproducible, en `/tenant-no-encontrado` — sin ningún log de servidor nuevo que lo explicara. La causa real nunca quedó 100% clara (probablemente algo en cómo Next.js resuelve un `redirect()` encadenado dentro de la respuesta de una Server Action, sin pasar por una request nueva de verdad). La solución robusta: `SignOutButton` es un **Client Component** que usa `signOut()` de `"next-auth/react"` con `redirect: false` + `window.location.href = "/login"` (ruta relativa) hecho a mano — una navegación dura real, que el navegador resuelve solo contra el origen actual, sin pasar por ningún mecanismo de redirect interno de Next/Auth.js. **Lección general de esta fase**: para todo lo que dependa del Host real de la request en una app multi-tenant por subdominio, no confiar en ningún mecanismo interno de reconstrucción de request de Next.js/Auth.js (proxy, config perezaza, redirects encadenados) — solo son confiables `headers()`/`request.headers` leídos directo en el Server Component o Server Action que atiende la request original, o una navegación dura real del lado del cliente.
+
+**Extensión de `packages/tenant-resolver`**: se agregó `resolveTenantFromHost`/`extractSlugFromHost` (`src/resolve-tenant-from-host.ts`) — parsea el host contra `TENANT_BASE_DOMAIN`, busca el `Tenant` en el control-plane, solo lo devuelve si está `ACTIVO`.
+
+**`apps/admin`**:
+- `src/proxy.ts`: `export { auth as proxy }`, chequeo de sesión nada más (sin DB) — matcher excluye `/login`, `/tenant-no-encontrado`, `/api/auth`.
+- `src/app/login/`: la página resuelve el tenant vía `headers()` (marcada `export const dynamic = "force-dynamic"` a propósito) y redirige a `/tenant-no-encontrado` si no existe; `loginAction` resuelve el tenant de nuevo y lo pasa como credential a `signIn`.
+- `src/app/(protected)/`: `layout.tsx` con nav + `SignOutButton` (Client Component, ver arriba), `dashboard/` (info de sesión), `sedes/` (CRUD, TENANT_ADMIN-only), `usuarios/` (invitar `SEDE_ADMIN`/`VENDEDOR` con credenciales generadas, mismo patrón de banner-una-sola-vez que `createTenant`).
+- Env vars que necesita (copiadas a mano a `apps/admin/.env.local` desde las de `apps/superadmin`, **no** hace falta `TENANTS_HOST_*` — esas son solo para crear/borrar bases de tenants): `POSTGRES_PRISMA_URL`, `DATABASE_URL_UNPOOLED`, `CONTROL_PLANE_ENCRYPTION_KEY` (mismo valor que `superadmin`, es un secreto compartido para des/cifrar) y un **`AUTH_SECRET` propio y distinto** al de `superadmin` (buena práctica, no debería compartirse entre apps). **Pendiente**: subir estas 4 env vars al proyecto Vercel `rifaxapp-admin` antes de desplegarlo (nunca se tocó ese proyecto todavía).
+
+**Pruebas** (todas verdes, 38 tests unit + 2 specs e2e):
+- Vitest: `packages/tenant-resolver/src/resolve-tenant-from-host.test.ts` (parseo de host, tenant no `ACTIVO`) + `apps/admin/.../sedes/actions.test.ts` + `.../usuarios/actions.test.ts` (RBAC, validaciones, credenciales generadas).
+- Playwright (`e2e/admin-tenant-rbac-flow.spec.ts`, nuevo): reusa el flujo real de `apps/superadmin` para crear un tenant, entra como su `TENANT_ADMIN` en `http://<slug>.localhost:3001`, crea una `Sede`, invita un `SEDE_ADMIN`, cierra sesión, entra como ese `SEDE_ADMIN` y confirma que su sesión trae el `sedeId` correcto (no null) y que no puede entrar a `/sedes`/`/usuarios`. Todo contra Neon real.
+- `next build` de producción de `apps/admin` (y `apps/superadmin`, para confirmar que nada se rompió) vía Turbo, verde.
+
 ## Próximo paso concreto
 
-1. **Fase 3**: RBAC/login multi-rol en `apps/admin` — middleware/proxy real que resuelve el tenant por Host (necesita el dominio, ver pendiente de abajo, o probarse con un Host header simulado), usando `tenant-resolver` para conectar a la DB del tenant resuelto. Auth.js contra `Usuario` (de `db-tenant`) en vez de `SuperAdmin`.
-2. Cuando haya pantallas reales de rifas: diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` en `db-tenant` junto con las reglas de negocio (precios, métodos de pago, estados) — no se inventaron en Fase 2 a propósito.
-3. ~~Confirmar si el warning de Turbopack sobre `db-tenant` es un problema real en el bundle de Vercel~~ — **confirmado que no** (funciones de ~38.86MB, deploy `Ready`), ver detalle arriba. Si crece mucho más en fases futuras, usar `outputFileTracingExcludes`.
-4. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario.
-5. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
+1. Subir las 4 env vars de `apps/admin` a su proyecto Vercel (`rifaxapp-admin`) y hacer el primer deploy real — nunca se tocó ese proyecto.
+2. **Fase 4** (a definir con el usuario): `apps/vendedores`/`apps/clientes` reusando `packages/auth`, o directamente diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` en `db-tenant` cuando haya reglas de negocio definidas.
+3. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario — cuando exista, solo hace falta setear `TENANT_BASE_DOMAIN=rifaxapp.com` en cada app de tenant, la lógica de resolución ya está lista para eso.
+4. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
 
 ## Cierre de sesión — 2026-08-25 (noche)
 

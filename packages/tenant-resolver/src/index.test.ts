@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { evictTenantPrismaClient, getTenantPrismaClient } from "./index.js";
+import { evictTenantPrismaClient, getTenantPrismaClient } from "./index";
 
 const tenantFindUniqueOrThrow = vi.fn();
 

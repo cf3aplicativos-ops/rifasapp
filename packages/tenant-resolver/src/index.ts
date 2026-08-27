@@ -1,6 +1,9 @@
 import { decryptConnectionString, getControlPrismaClient } from "@rifaxapp/db-control";
 import { createTenantPrismaClient, type PrismaClient } from "@rifaxapp/db-tenant";
 
+export { extractSlugFromHost, resolveTenantFromHost } from "./resolve-tenant-from-host";
+export type { ResolvedTenant } from "./resolve-tenant-from-host";
+
 // Cacheado por tenantId a nivel de módulo — reusa la conexión entre llamadas
 // dentro de la misma instancia serverless "warm". Sin límite de tamaño ni TTL
 // por ahora; revisar si hace falta un LRU cuando haya muchos tenants activos
@@ -11,8 +14,10 @@ const clientsByTenantId = new Map<string, PrismaClient>();
  * Dado un tenantId (fila en el control-plane), descifra su connection string
  * y devuelve un PrismaClient conectado a la DB de ese tenant, cacheado.
  *
- * No resuelve el tenant por subdominio/Host todavía — eso llega en Fase 3,
- * cuando exista una app con middleware/proxy real que lo necesite.
+ * (La resolución por Host es `resolveTenantFromHost`, arriba — separada de
+ * este factory porque las apps de tenant llaman a ambas por separado: el
+ * proxy/auth resuelve el tenant por Host, y una vez tienen el tenantId
+ * llaman a este factory para conectarse a su DB.)
  */
 export async function getTenantPrismaClient(tenantId: string): Promise<PrismaClient> {
   const cached = clientsByTenantId.get(tenantId);
