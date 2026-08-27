@@ -139,19 +139,22 @@
 - `src/proxy.ts`: `export { auth as proxy }`, chequeo de sesión nada más (sin DB) — matcher excluye `/login`, `/tenant-no-encontrado`, `/api/auth`.
 - `src/app/login/`: la página resuelve el tenant vía `headers()` (marcada `export const dynamic = "force-dynamic"` a propósito) y redirige a `/tenant-no-encontrado` si no existe; `loginAction` resuelve el tenant de nuevo y lo pasa como credential a `signIn`.
 - `src/app/(protected)/`: `layout.tsx` con nav + `SignOutButton` (Client Component, ver arriba), `dashboard/` (info de sesión), `sedes/` (CRUD, TENANT_ADMIN-only), `usuarios/` (invitar `SEDE_ADMIN`/`VENDEDOR` con credenciales generadas, mismo patrón de banner-una-sola-vez que `createTenant`).
-- Env vars que necesita (copiadas a mano a `apps/admin/.env.local` desde las de `apps/superadmin`, **no** hace falta `TENANTS_HOST_*` — esas son solo para crear/borrar bases de tenants): `POSTGRES_PRISMA_URL`, `DATABASE_URL_UNPOOLED`, `CONTROL_PLANE_ENCRYPTION_KEY` (mismo valor que `superadmin`, es un secreto compartido para des/cifrar) y un **`AUTH_SECRET` propio y distinto** al de `superadmin` (buena práctica, no debería compartirse entre apps). **Pendiente**: subir estas 4 env vars al proyecto Vercel `rifaxapp-admin` antes de desplegarlo (nunca se tocó ese proyecto todavía).
+- Env vars que necesita (copiadas a mano a `apps/admin/.env.local` desde las de `apps/superadmin`, **no** hace falta `TENANTS_HOST_*` — esas son solo para crear/borrar bases de tenants): `POSTGRES_PRISMA_URL`, `DATABASE_URL_UNPOOLED`, `CONTROL_PLANE_ENCRYPTION_KEY` (mismo valor que `superadmin`, es un secreto compartido para des/cifrar) y un **`AUTH_SECRET` propio y distinto** al de `superadmin` (buena práctica, no debería compartirse entre apps). **Ya subidas** a los 3 entornos del proyecto Vercel `rifaxapp-admin` (esta vez `vercel env add` no fue bloqueado por el clasificador de auto-mode — a diferencia de Fase 1, no hubo que pedírselo al usuario).
 
 **Pruebas** (todas verdes, 38 tests unit + 2 specs e2e):
 - Vitest: `packages/tenant-resolver/src/resolve-tenant-from-host.test.ts` (parseo de host, tenant no `ACTIVO`) + `apps/admin/.../sedes/actions.test.ts` + `.../usuarios/actions.test.ts` (RBAC, validaciones, credenciales generadas).
 - Playwright (`e2e/admin-tenant-rbac-flow.spec.ts`, nuevo): reusa el flujo real de `apps/superadmin` para crear un tenant, entra como su `TENANT_ADMIN` en `http://<slug>.localhost:3001`, crea una `Sede`, invita un `SEDE_ADMIN`, cierra sesión, entra como ese `SEDE_ADMIN` y confirma que su sesión trae el `sedeId` correcto (no null) y que no puede entrar a `/sedes`/`/usuarios`. Todo contra Neon real.
 - `next build` de producción de `apps/admin` (y `apps/superadmin`, para confirmar que nada se rompió) vía Turbo, verde.
 
+## Estado de deploy — apps/admin (2026-08-26)
+
+Primer deploy real de `rifaxapp-admin`: **`● Ready`** en `https://rifaxapp-admin.vercel.app` (función serverless ~39MB, igual que `superadmin`, muy por debajo del límite de Vercel). No se probó el login multi-tenant contra la URL de producción en esta sesión (necesitaría un tenant real + wildcard de dominio para probar subdominios ahí, o Deployment Protection de por medio) — el mismo código ya se probó de punta a punta contra Neon real en local (ver Fase 3 arriba).
+
 ## Próximo paso concreto
 
-1. Subir las 4 env vars de `apps/admin` a su proyecto Vercel (`rifaxapp-admin`) y hacer el primer deploy real — nunca se tocó ese proyecto.
-2. **Fase 4** (a definir con el usuario): `apps/vendedores`/`apps/clientes` reusando `packages/auth`, o directamente diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` en `db-tenant` cuando haya reglas de negocio definidas.
-3. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario — cuando exista, solo hace falta setear `TENANT_BASE_DOMAIN=rifaxapp.com` en cada app de tenant, la lógica de resolución ya está lista para eso.
-4. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
+1. **Fase 4** (a definir con el usuario): `apps/vendedores`/`apps/clientes` reusando `packages/auth`, o directamente diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` en `db-tenant` cuando haya reglas de negocio definidas.
+2. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario — cuando exista, solo hace falta setear `TENANT_BASE_DOMAIN=rifaxapp.com` en cada app de tenant, la lógica de resolución ya está lista para eso.
+3. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
 
 ## Cierre de sesión — 2026-08-25 (noche)
 
