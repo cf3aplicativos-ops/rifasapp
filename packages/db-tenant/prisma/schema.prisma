@@ -2,9 +2,20 @@
 // distinta por tenant, ver docs/ARQUITECTURA.md). El `output` del generator
 // es propio (no el default de @prisma/client) para no chocar con el cliente
 // generado por packages/db-control en el mismo node_modules del workspace.
+//
+// `binaryTargets` explícito (Fase 11): al tener un `output` custom, Next.js/
+// Vercel no detecta ni empaqueta solo el motor de consultas para el runtime
+// de las funciones serverless (rhel-openssl-3.0.x) como sí hace con la
+// ubicación default de @prisma/client (por eso db-control nunca tuvo este
+// problema). Sin esto, `createTenant` crea la DB del tenant bien pero
+// revienta en el último paso (la verificación con `getTenantPrismaClient`)
+// con "could not locate the Query Engine for runtime rhel-openssl-3.0.x" —
+// visto en producción real. "native" sigue para que `npm run dev` en
+// Windows genere su propio motor sin depender de esto.
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/client"
+  provider      = "prisma-client-js"
+  output        = "../src/generated/client"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
