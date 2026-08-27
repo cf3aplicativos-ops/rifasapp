@@ -169,7 +169,12 @@ Primer deploy real de `rifaxapp-admin`: **`● Ready`** en `https://rifaxapp-adm
 
 ## Estado de deploy — apps/vendedores y apps/clientes (2026-08-26)
 
-Ambas desplegadas por primera vez, `● Ready`: revisar `vercel ls` en cada proyecto (`rifaxapp-vendedores`, `rifaxapp-clientes`) para las URLs exactas si hace falta.
+Los proyectos Vercel `rifaxapp-vendedores` y `rifaxapp-clientes` ya existían desde Fase 0 y están conectados al repo — cada `git push` a `main` ya disparaba un build automático de las 4 apps, incluso cuando estas dos todavía eran el scaffold vacío de `create-next-app` (por eso `vercel ls` mostraba deploys `● Ready` de horas/días atrás sin que nadie hubiera tocado sus env vars todavía). El push de Fase 4 (`2f9be29`) disparó un build nuevo de ambas **antes** de que las env vars estuvieran cargadas.
+
+Pasos hechos para dejarlas realmente operativas:
+1. `vercel env add` de las 4 vars (`POSTGRES_PRISMA_URL`, `DATABASE_URL_UNPOOLED`, `CONTROL_PLANE_ENCRYPTION_KEY` compartida, `AUTH_SECRET` propio por app) en Production/Preview/Development, para cada proyecto — 24 comandos en total, todos aceptados sin bloqueo del clasificador.
+2. Como Vercel no reinyecta env vars nuevas en un deployment ya construido, se corrió `vercel redeploy <url-del-ultimo-deploy>` en cada proyecto para forzar un build con las vars ya presentes. La CLI tiró `Error: fetch failed` al esperar el resultado en ambos casos (el mismo problema de red/TLS visto antes con `vercel redeploy`), pero el build se había disparado igual — se confirmó `● Ready` con `vercel inspect <nueva-url>` en vez de confiar en la salida del comando `redeploy`.
+3. Confirmado: `rifaxapp-vendedores` (`dpl_H7qdMeRdnJDhaqgbeChE4wjJVTK4`) y `rifaxapp-clientes` (`dpl_7eWBnFVVHXBcYjDDtGvRGpzbJQNs`) ambos `● Ready` en Production con las env vars nuevas aplicadas.
 
 ## Próximo paso concreto
 
@@ -177,9 +182,9 @@ Ambas desplegadas por primera vez, `● Ready`: revisar `vercel ls` en cada proy
 2. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario — cuando exista, solo hace falta setear `TENANT_BASE_DOMAIN=rifaxapp.com` en cada app de tenant, la lógica de resolución ya está lista para eso.
 3. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
 
-## Cierre de sesión — 2026-08-25 (noche)
+## Cierre de sesión — 2026-08-26
 
-Sesión pausada a pedido del usuario ("paremos acá y continuamos mañana"). No quedó nada a medias sin commitear — todo lo de esta sesión está pusheado a `main` (`1db1dc6`). Lo único pendiente es que el usuario responda las dos preguntas de arriba (Neon y dominio) para poder cerrar el gate de Fase 0. Quien retome: lee este archivo completo antes de tocar nada.
+Fase 4 cerrada de punta a punta: código commiteado y pusheado a `main` (`2f9be29`), `rifaxapp-vendedores` y `rifaxapp-clientes` desplegadas en Vercel con sus env vars y confirmadas `● Ready`. Las 4 apps del monorepo (superadmin, admin, vendedores, clientes) están ahora completas con login multi-rol funcionando en producción. Nada quedó a medias sin commitear. Quien retome: el próximo paso es Fase 5, a definir con el usuario (diseño del modelo de negocio `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago`) — lee este archivo completo antes de tocar nada.
 
 ## Notas técnicas de arquitectura para quien retome
 
