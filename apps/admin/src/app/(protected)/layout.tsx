@@ -19,6 +19,7 @@ export default async function ProtectedLayout({
           {isTenantAdmin && (
             <>
               <Link href="/rifas">Rifas</Link>
+              <Link href="/reportes">Reportes</Link>
               <Link href="/sedes">Sedes</Link>
               <Link href="/usuarios">Usuarios</Link>
             </>

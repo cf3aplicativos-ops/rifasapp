@@ -131,7 +131,15 @@ test.describe("rifa: flujo completo (admin crea/activa, vendedor y cliente compr
     await page.getByRole("button", { name: "Cerrar rifa y elegir ganador" }).click();
     await expect(page.getByText("Boleto ganador: #1")).toBeVisible({ timeout: 15000 });
 
-    // 8. Cleanup: borrar el tenant desde superadmin (dispara DROP DATABASE).
+    // 8. TENANT_ADMIN revisa /reportes: recaudado total y desglose por vendedor.
+    await page.goto(`${adminBase}/reportes`);
+    await expect(page.getByText("$20.00").first()).toBeVisible();
+    const rifaReportSection = page.locator("section", { hasText: "Rifa moto" });
+    await expect(rifaReportSection).toContainText("$20.00");
+    await expect(rifaReportSection.getByRole("row", { name: vendedorEmail })).toContainText("$10.00");
+    await expect(rifaReportSection.getByRole("row", { name: "Autocompra" })).toContainText("$10.00");
+
+    // 9. Cleanup: borrar el tenant desde superadmin (dispara DROP DATABASE).
     await page.goto("http://localhost:3000/tenants");
     page.once("dialog", (dialog) => dialog.accept());
     await row.getByRole("button", { name: "Borrar" }).click();

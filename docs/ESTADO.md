@@ -4,11 +4,11 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 6 completa: expiración automática de reservas `PENDIENTE` vencidas (libera boletos solos si nadie confirma/anula a tiempo).
+**2026-08-27** — Fase 7 completa: `/reportes` en `apps/admin` (recaudado y boletos por rifa, desglosado por vendedor/autocompra).
 
 ## Fase actual
 
-**Fase 6 — expiración de reservas** cerrada. Fases 0-5 siguen cerradas. Próxima: Fase 7, a definir con el usuario (candidatos que quedaron pendientes de Fase 5/6: `Pago` con pasarela real, reportes/dashboard de ventas, o retomar el dominio `rifaxapp.com` para Multi Zones).
+**Fase 7 — reportes de ventas** cerrada. Fases 0-6 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (usuario confirmó 2026-08-27 que no lo compró aún — no puedo comprarlo yo, es una transacción con dinero real; instrucciones de compra + conexión a Vercel quedaron dadas en el chat, retomar cuando el usuario lo tenga). Próxima: Fase 8, a definir con el usuario (candidatos: `Pago` con pasarela real, notificaciones, o Multi Zones apenas haya dominio).
 
 ## Qué se completó en esta sesión
 
@@ -220,17 +220,28 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: push a `main` (`5ea19b4`) disparó el auto-deploy de las 4 apps, confirmado `● Ready` en Production para las 4.
 
+## Fase 7 — reportes de ventas (2026-08-27)
+
+**Contexto**: el usuario eligió "retomar el dominio" como prioridad de Fase 7, pero al confirmar el estado, **`rifaxapp.com` todavía no está comprado** — no hay ninguna acción de código posible sin el dominio en mano (registrar en Vercel, DNS, Multi Zones), y comprarlo es una transacción con dinero real que le corresponde al usuario, no a mí. Se le dieron las instrucciones de compra + conexión en el chat (comprar en cualquier registrador → avisar → `vercel domains add rifaxapp.com` + wildcard en `rifaxapp-clientes`, `app.rifaxapp.com` en `rifaxapp-superadmin`, rewrites de Multi Zones en `apps/clientes/next.config.ts`, `TENANT_BASE_DOMAIN=rifaxapp.com` en las 3 apps de tenant — la lógica de resolución de tenant por Host ya soporta esto desde Fase 2, solo falta el dominio real). El usuario pidió seguir con **reportes de ventas** mientras tanto.
+
+**Qué se hizo**: `/reportes` nueva en `apps/admin` (`TENANT_ADMIN`-only, nav agregado en el layout). Sin schema nuevo — es 100% lectura/agregación sobre `Rifa`/`Boleto`/`Venta` ya existentes:
+- Resumen tenant-wide arriba: recaudado total y boletos vendidos, sumando todas las `Venta` en estado `PAGADA` de todas las rifas.
+- Por cada `Rifa`: recaudado, conteo de boletos `DISPONIBLE`/`RESERVADO`/`VENDIDO`/total (`prisma.boleto.groupBy(by: ["rifaId", "estado"])`), y una tabla de desglose por vendedor — cada `Venta PAGADA` se agrupa por `vendedorId` (nombre o email + sede si tiene) o cae en el bucket `"Autocompra (cliente)"` si `vendedorId` es null (compra de un `CLIENTE`).
+- Los agregados se calculan en JS después de traer las `Venta PAGADA` con `include: { vendedor: { include: { sede: true } }, boletos: true }` — no se usó `groupBy` de Prisma para esto porque necesita atravesar la relación `vendedor.sede`, que `groupBy` no soporta bien; el volumen esperado por tenant no justifica una consulta más compleja todavía.
+
+**Pruebas**: no se agregó un test unitario dedicado (la página no tiene server actions, es puro fetch+render de Server Component, mismo criterio que el resto de `page.tsx` del repo). Se extendió **`e2e/rifa-flujo-completo.spec.ts`** (ya cubre 1 venta de `VENDEDOR` de $10 + 1 autocompra de `CLIENTE` de $10 confirmada) con un paso nuevo antes del cleanup: visita `/reportes` y confirma `$20.00` de total, `$10.00` en la fila del vendedor y `$10.00` en la fila de "Autocompra" — verificado real contra Neon, verde. 72 tests unitarios + los 5 e2e siguen todos verdes.
+
 ## Próximo paso concreto
 
-1. **Fase 7** (a definir con el usuario): `Pago` con pasarela real (Stripe/Wompi/PayU), reportes/dashboard de ventas por rifa/sede/vendedor, notificaciones (email/WhatsApp) al confirmar un pago, o retomar el dominio.
-2. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario — cuando exista, solo hace falta setear `TENANT_BASE_DOMAIN=rifaxapp.com` en cada app de tenant, la lógica de resolución ya está lista para eso.
+1. **Fase 8** (a definir con el usuario): `Pago` con pasarela real (Stripe/Wompi/PayU), notificaciones (email/WhatsApp) al confirmar un pago, o Multi Zones apenas el usuario tenga el dominio comprado (ver Fase 7 arriba para los pasos exactos).
+2. **Dominio**: bloqueado en que el usuario compre `rifaxapp.com` — instrucciones ya dadas, retomar apenas confirme que lo tiene.
 3. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
 4. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla.
 5. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 6 cerrada de punta a punta: expiración automática de reservas `PENDIENTE` implementada y verificada contra Neon real (no solo mocks), 4 tests unitarios nuevos (72 en el repo, todos verdes). Nada quedó a medias sin commitear. Quien retome: el próximo paso es Fase 7, a definir con el usuario — lee este archivo completo antes de tocar nada, y no te olvides del `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`.
+Fase 7 cerrada de punta a punta: `/reportes` implementado y verificado con e2e real contra Neon (recaudado/boletos por rifa y por vendedor). El dominio quedó explícitamente bloqueado en que el usuario lo compre — no es un olvido, es la razón por la que se saltó a reportes en esta sesión. Nada quedó a medias sin commitear. Quien retome: el próximo paso es Fase 8, a definir con el usuario (o retomar el dominio si ya lo compró) — lee este archivo completo antes de tocar nada, y no te olvides del `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`.
 
 ## Notas técnicas de arquitectura para quien retome
 
