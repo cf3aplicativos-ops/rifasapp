@@ -1,0 +1,40 @@
+// Schema "plantilla" — se aplica a la base de datos de CADA tenant (una DB
+// distinta por tenant, ver docs/ARQUITECTURA.md). El `output` del generator
+// es propio (no el default de @prisma/client) para no chocar con el cliente
+// generado por packages/db-control en el mismo node_modules del workspace.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UsuarioRol {
+  TENANT_ADMIN
+  SEDE_ADMIN
+  VENDEDOR
+  CLIENTE
+}
+
+model Sede {
+  id        String    @id @default(uuid())
+  nombre    String
+  usuarios  Usuario[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Usuario {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  nombre       String?
+  rol          UsuarioRol
+  sedeId       String?
+  sede         Sede?      @relation(fields: [sedeId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}

@@ -4,11 +4,11 @@
 
 ## Última actualización
 
-**2026-08-26** — Fase 1 completa: `packages/db-control` + login/CRUD/provisioning real en `apps/superadmin`.
+**2026-08-26** — Fase 2 completa: `packages/db-tenant` + `packages/tenant-resolver` + primer `TENANT_ADMIN` real al crear un tenant.
 
 ## Fase actual
 
-**Fase 1 — control-plane + superadmin** cerrada. Fase 0 sigue cerrada salvo el dominio (pospuesto a pedido del usuario). Próxima: Fase 2 (`packages/db-tenant` + `packages/tenant-resolver`).
+**Fase 2 — schema de tenant + tenant-resolver** cerrada. Fase 0 y Fase 1 siguen cerradas (dominio pospuesto a pedido del usuario). Próxima: Fase 3 (RBAC/login multi-rol en `apps/admin`, resolución por Host + middleware real).
 
 ## Qué se completó en esta sesión
 
@@ -90,11 +90,39 @@
 
 `rifaxapp-superadmin` deployado y **`● Ready`** en `https://rifaxapp-superadmin.vercel.app`, con `AUTH_SECRET` y `CONTROL_PLANE_ENCRYPTION_KEY` ya presentes en Production/Preview/Development. No se hizo un login real contra la URL de producción en esta sesión (queda detrás del Deployment Protection de Vercel para proyectos de equipo) — quien retome puede probarlo logueado en el dashboard de `rifa7`, o simplemente confiar en que el mismo código ya se probó de punta a punta contra Neon real en local (ver sección de Fase 1 arriba).
 
+## Fase 2 — db-tenant + tenant-resolver + primer TENANT_ADMIN (2026-08-26)
+
+**Alcance acotado a propósito** (confirmado con el usuario, ver `docs/ARQUITECTURA.md` para la lectura completa): el schema de `db-tenant` en esta fase es **solo `Sede` + `Usuario`** — lo mínimo para que exista el primer `TENANT_ADMIN` y quede la base del login multi-rol de Fase 3. `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` (producto real de rifas) quedan para una fase futura, junto con las reglas de negocio y pantallas que los necesiten — no se inventaron ahora. `tenant-resolver` en esta fase es **solo el factory de `PrismaClient` dinámico**; la resolución por Host/subdominio y el middleware que la usa quedan para Fase 3 (cuando exista dominio + una app real).
+
+**`packages/db-tenant`** (nuevo, `@rifaxapp/db-tenant`, mismo patrón que `db-control`):
+- **Generator con `output` propio** (`generator client { output = "../src/generated/client" }`) — **importante**: dos schemas de Prisma en el mismo workspace NO pueden usar el output default de `@prisma/client` a la vez, se pisarían el uno al otro en el `node_modules` compartido. `db-control` se dejó intacto (sigue con el default); si se agrega un tercer schema en el futuro, también necesita su propio `output`.
+- Schema: `enum UsuarioRol { TENANT_ADMIN SEDE_ADMIN VENDEDOR CLIENTE }`, `model Sede`, `model Usuario` (`sedeId` nulo para `TENANT_ADMIN`/`CLIENTE`, seteado para `SEDE_ADMIN`/`VENDEDOR`, según la regla de RBAC de `ARQUITECTURA.md`). Usa `@default(uuid())` (no `cuid()` como `db-control`) porque el insert del primer admin se hace con SQL crudo, generando el id con `crypto.randomUUID()`.
+- **Cómo se aplica el schema a cada tenant nuevo**: NO se invoca `prisma migrate deploy` en runtime (frágil en serverless, requeriría spawnear el engine de Prisma) ni se lee `migration.sql` del disco en runtime. En vez de eso, `src/schema-sql.ts` exporta el DDL completo como una constante de TypeScript (`TENANT_SCHEMA_SQL`), generada una vez corriendo `prisma migrate dev` contra una DB Neon descartable (se creó y se borró `tenant__migration_scratch` en `rifaxapp-tenants-host` solo para esto) y pegando el SQL resultante. **Si el schema de `db-tenant` cambia**: repetir ese proceso (DB descartable → `npm run db:migrate` → copiar el SQL nuevo a `schema-sql.ts`) — no hay automatización todavía.
+- `src/client.ts`: `createTenantPrismaClient(connectionString)` — a diferencia de `db-control`, NO cachea en `globalThis` (hay N tenants, cada uno con su propia conexión; el cacheo por tenant es responsabilidad de `tenant-resolver`).
+
+**`packages/tenant-resolver`** (nuevo, `@rifaxapp/tenant-resolver`):
+- `getTenantPrismaClient(tenantId)`: busca el `Tenant` en el control-plane, descifra su connection string, devuelve un `PrismaClient` cacheado en un `Map` a nivel de módulo (sin límite de tamaño/TTL por ahora).
+- `evictTenantPrismaClient(tenantId)`: **necesario para poder borrar un tenant** — si un `PrismaClient` de ese tenant quedó cacheado (por ejemplo, por la verificación que hace `createTenant` al final), Postgres/Neon rechaza el `DROP DATABASE` con "being accessed by other users" mientras esa conexión siga viva. `deleteTenant` lo llama antes de intentar el `DROP DATABASE`.
+- **Gotcha real encontrado en el e2e**: incluso llamando `evictTenantPrismaClient` (que hace `$disconnect()`), el `DROP DATABASE` seguía fallando — el cierre del lado del cliente no garantiza que la sesión del lado de Neon se cierre al instante. Solución robusta: `DROP DATABASE ... WITH (FORCE)` (Postgres 13+, que sí soporta Neon), en vez de depender de un timing exacto de desconexión.
+
+**Extensión de `createTenant`** (`apps/superadmin/.../tenants/actions.ts`):
+- El form suma un campo **"Email del admin"** (requerido). Tras `CREATE DATABASE`, aplica `TENANT_SCHEMA_SQL` y luego inserta el primer `Usuario` (`rol = 'TENANT_ADMIN'`, `sedeId = NULL`, password aleatoria generada y hasheada con `hashPassword` de `db-control`) — todo con el mismo `pg.Client` crudo ya conectado a la DB nueva. Como verificación real de que el tenant quedó usable, llama `getTenantPrismaClient(tenant.id)` y hace `usuario.count()` antes de devolver éxito.
+- El banner de éxito en la UI (`create-tenant-form.tsx`) muestra el email y password del admin generado — una sola vez, no se puede volver a consultar después (mismo patrón que el seed del superadmin).
+
+**Warning nuevo en el build (no bloqueante, pendiente de revisar si aparece en Vercel)**: Turbopack avisa que el cliente de Prisma generado en `db-tenant` (por tener un `output` custom, no el paquete `@prisma/client` de siempre que Next ya externaliza por defecto) hace acceso dinámico a `fs`/`path` para detección de entorno, lo que "arrastra todo el proyecto" al tracing de esa ruta. Se intentó `serverExternalPackages: ["@rifaxapp/db-tenant"]` en `next.config.ts` sin efecto (los packages del workspace se resuelven como código fuente vía `exports` a `.ts`, no como un `require` externo real, así que `serverExternalPackages` no aplica). Build local igual pasa; falta confirmar si el bundle final en Vercel crece de forma preocupante o falla por límite de tamaño — si pasa, la vía correcta es `outputFileTracingExcludes` en `next.config.ts` para acotar qué se empaqueta.
+
+**Pruebas** (todas verdes):
+- Vitest: 17 tests en total (antes 7) — se sumaron `packages/tenant-resolver/src/index.test.ts` (cacheo, desalojo, error si falta connection string) y se extendió `tenants/actions.test.ts` (email de admin inválido, insert del `TENANT_ADMIN`, `deleteTenant`).
+- Playwright (`e2e/superadmin-tenant-flow.spec.ts`, extendido): ahora completa también el email del admin, verifica el banner de credenciales, y **se conecta directo por SQL a la DB del tenant recién creado** para confirmar que la fila `Usuario` con `rol = 'TENANT_ADMIN'` existe de verdad, antes de borrar el tenant. Requiere además `TENANTS_HOST_PGHOST`/`PGUSER`/`PGPASSWORD` en el entorno (antes solo hacía falta el seed del superadmin).
+- `next build` de producción vía Turbo (`db-control` → `db-tenant` → `superadmin`, en ese orden por el grafo de tareas) verde.
+
 ## Próximo paso concreto
 
-1. **Fase 2**: `packages/db-tenant` (schema Prisma "plantilla" que se despliega en cada DB de tenant: `Sede`, `Usuario` con roles `TENANT_ADMIN`/`SEDE_ADMIN`/`VENDEDOR`/`CLIENTE`, `Rifa`, `Boleto`, `Venta`, `Cliente`, `Pago`) + `packages/tenant-resolver` (resuelve tenant por subdominio, factory de `PrismaClient` dinámico usando el `connectionStringCifrado` guardado en el control-plane). Con eso, extender `createTenant` para correr las migraciones de `db-tenant` contra la DB recién creada y crear el primer `TENANT_ADMIN`.
-2. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario.
-3. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
+1. **Fase 3**: RBAC/login multi-rol en `apps/admin` — middleware/proxy real que resuelve el tenant por Host (necesita el dominio, ver pendiente de abajo, o probarse con un Host header simulado), usando `tenant-resolver` para conectar a la DB del tenant resuelto. Auth.js contra `Usuario` (de `db-tenant`) en vez de `SuperAdmin`.
+2. Cuando haya pantallas reales de rifas: diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` en `db-tenant` junto con las reglas de negocio (precios, métodos de pago, estados) — no se inventaron en Fase 2 a propósito.
+3. Confirmar si el warning de Turbopack sobre `db-tenant` (arriba) es un problema real en el bundle de Vercel; si lo es, usar `outputFileTracingExcludes`.
+4. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario.
+5. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
 
 ## Cierre de sesión — 2026-08-25 (noche)
 

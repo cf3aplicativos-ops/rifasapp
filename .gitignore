@@ -29,6 +29,10 @@ out/
 build
 dist
 
+# Prisma clients con output custom (packages/db-tenant y similares) — se
+# regeneran solos vía el script "build" de cada package (ver turbo.json).
+packages/*/src/generated/
+
 
 # Debug
 npm-debug.log*

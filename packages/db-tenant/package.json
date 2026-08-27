@@ -1,0 +1,27 @@
+{
+  "name": "@rifaxapp/db-tenant",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "prisma generate --schema=prisma/schema.prisma",
+    "check-types": "tsc --noEmit",
+    "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@prisma/adapter-neon": "^6.19.3",
+    "@prisma/client": "^6.19.3",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "@types/node": "26.3.0",
+    "@types/ws": "^8.18.1",
+    "prisma": "^6.19.3",
+    "typescript": "7.0.2"
+  }
+}
