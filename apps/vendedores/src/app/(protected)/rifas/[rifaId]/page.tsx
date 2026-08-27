@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { expirarVentasVencidas } from "@rifaxapp/db-tenant";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { requireSession } from "@/lib/require-session";
 import { VentaForm } from "./venta-form";
@@ -12,6 +13,14 @@ export default async function RifaVendedorPage({
   const { rifaId } = await params;
 
   const prisma = await getTenantPrismaClient(session.user.tenantId);
+  // Libera boletos de reservas de CLIENTE vencidas antes de mostrar la
+  // grilla, para que el vendedor no vea como "no disponible" un número que
+  // en realidad ya está libre de nuevo (Fase 6).
+  await expirarVentasVencidas(
+    prisma,
+    process.env.RESERVA_TTL_HORAS ? Number(process.env.RESERVA_TTL_HORAS) : undefined,
+  );
+
   const rifa = await prisma.rifa.findUnique({ where: { id: rifaId } });
   if (!rifa || rifa.estado !== "ACTIVA") notFound();
 

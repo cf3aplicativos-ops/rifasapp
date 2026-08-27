@@ -14,6 +14,7 @@
 // Migraciones incluidas hasta ahora:
 // - 20260827012343_init (Sede, Usuario)
 // - 20260827110242_add_rifa_boleto_venta (Rifa, Boleto, Venta)
+// - 20260827124558_add_venta_vencida (VentaEstado.VENCIDA)
 export const TENANT_SCHEMA_SQL = `
 -- CreateEnum
 CREATE TYPE "UsuarioRol" AS ENUM ('TENANT_ADMIN', 'SEDE_ADMIN', 'VENDEDOR', 'CLIENTE');
@@ -132,4 +133,7 @@ ALTER TABLE "Venta" ADD CONSTRAINT "Venta_vendedorId_fkey" FOREIGN KEY ("vendedo
 
 -- AddForeignKey
 ALTER TABLE "Venta" ADD CONSTRAINT "Venta_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "Usuario"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AlterEnum
+ALTER TYPE "VentaEstado" ADD VALUE 'VENCIDA';
 `;

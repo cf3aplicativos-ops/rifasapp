@@ -1,3 +1,4 @@
+import { expirarVentasVencidas } from "@rifaxapp/db-tenant";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { requireSession } from "@/lib/require-session";
 
@@ -5,11 +6,17 @@ const ESTADO_LABEL: Record<string, string> = {
   PENDIENTE: "Pendiente de confirmación",
   PAGADA: "Confirmada",
   ANULADA: "Anulada",
+  VENCIDA: "Vencida (nadie confirmó el pago a tiempo)",
 };
 
 export default async function MisBoletosPage() {
   const session = await requireSession();
   const prisma = await getTenantPrismaClient(session.user.tenantId);
+  await expirarVentasVencidas(
+    prisma,
+    process.env.RESERVA_TTL_HORAS ? Number(process.env.RESERVA_TTL_HORAS) : undefined,
+  );
+
   const ventas = await prisma.venta.findMany({
     where: { clienteId: session.user.id },
     include: { boletos: true, rifa: true },

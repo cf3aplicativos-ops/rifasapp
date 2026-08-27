@@ -4,11 +4,11 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 5 completa: modelo de negocio `Rifa`/`Boleto`/`Venta` en `packages/db-tenant`, con pantallas reales en `admin`/`vendedores`/`clientes`.
+**2026-08-27** — Fase 6 completa: expiración automática de reservas `PENDIENTE` vencidas (libera boletos solos si nadie confirma/anula a tiempo).
 
 ## Fase actual
 
-**Fase 5 — Rifa/Boleto/Venta** cerrada. Fases 0-4 siguen cerradas (dominio pospuesto a pedido del usuario). Próxima: Fase 6, a definir con el usuario (candidatos: `Pago` con pasarela real, expiración automática de reservas `PENDIENTE`, reportes/dashboard de ventas, o directamente retomar el dominio `rifaxapp.com` para Multi Zones).
+**Fase 6 — expiración de reservas** cerrada. Fases 0-5 siguen cerradas. Próxima: Fase 7, a definir con el usuario (candidatos que quedaron pendientes de Fase 5/6: `Pago` con pasarela real, reportes/dashboard de ventas, o retomar el dominio `rifaxapp.com` para Multi Zones).
 
 ## Qué se completó en esta sesión
 
@@ -206,16 +206,29 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: push a `main` (`87992ac`) disparó el auto-deploy de las 4 apps (git integration de Vercel, activa desde Fase 0). Confirmado `● Ready` en Production para `rifaxapp-superadmin`, `rifaxapp-admin`, `rifaxapp-vendedores` y `rifaxapp-clientes` — no hizo falta tocar env vars (el schema nuevo solo aplica a tenants creados de acá en adelante, vía `TENANT_SCHEMA_SQL` actualizado).
 
+## Fase 6 — expiración de reservas (2026-08-27)
+
+**Problema que resuelve**: una `Venta` de `CLIENTE` (autocompra, sin pasarela) queda `PENDIENTE` con sus boletos en `RESERVADO` hasta que un `TENANT_ADMIN` la confirme o anule a mano desde `apps/admin`. Si nadie la toca, esos boletos quedan bloqueados para siempre — un cliente real podría "trabar" números sin pagar nunca.
+
+**Diseño — expiración "lazy", sin cron**: `packages/db-tenant` suma `expirarVentasVencidas(prisma, ttlHoras = 48)` ([src/expirar-ventas-vencidas.ts](packages/db-tenant/src/expirar-ventas-vencidas.ts)): busca `Venta` en `PENDIENTE` con `createdAt` más viejo que el TTL, y en una transacción las pasa a un nuevo estado `VENCIDA` (se sumó al enum `VentaEstado`, migración `20260827124558_add_venta_vencida`) y libera sus `Boleto` `RESERVADO` de vuelta a `DISPONIBLE`. Se decidió explícitamente **no** armar un cron/job que recorra todos los tenants desde una función central (cruzar tenants desde una sola función es la clase de infraestructura que este proyecto viene evitando desde Fase 2 — 1 DB por tenant, sin acceso cruzado) — en cambio, cada página de tenant que muestra disponibilidad de boletos o estado de ventas la llama al principio, con la conexión a SU PROPIA DB que ya tenía en mano: `apps/admin` en `/rifas/[id]` y `/rifas/[id]/ventas`, `apps/vendedores` y `apps/clientes` en `/rifas/[id]` (la grilla de compra), y `apps/clientes` en `/mis-boletos`. Consecuencia aceptada: si nadie visita esas páginas de un tenant, sus reservas vencidas no se limpian hasta la próxima visita — no hace falta que se libere al segundo exacto, alcanza con que se libere la próxima vez que alguien mire esa rifa.
+
+**TTL configurable sin redeploy de código**: `RESERVA_TTL_HORAS` (env var opcional, default 48hs si no está seteada) — mismo patrón en las 4 llamadas: `expirarVentasVencidas(prisma, process.env.RESERVA_TTL_HORAS ? Number(...) : undefined)`. No se cargó en Vercel todavía porque 48hs es un default razonable; setearla ahí si se quiere otro valor.
+
+**Verificación real (no solo mocks)**: además del test unitario, se corrió un script descartable que crea una DB de tenant real con `TENANT_SCHEMA_SQL`, inserta una `Venta PENDIENTE` con `createdAt` de hace 100hs y otra reciente, corre `expirarVentasVencidas` con el `createTenantPrismaClient` real (mismo código que usan las apps) y confirma: la vieja pasa a `VENCIDA` con su boleto `DISPONIBLE`, la reciente sigue `PENDIENTE`/`RESERVADO` intacta. Limpió la DB scratch al final.
+
+**Pruebas**: `packages/db-tenant/src/expirar-ventas-vencidas.test.ts` (4 tests: no-op sin vencidas, cálculo correcto del límite de tiempo, marca VENCIDA + libera boletos, usa el default de 48hs) — 72 tests en el repo, todos verdes. No se agregó un e2e nuevo para esto: simular "48hs después" de forma realista en Playwright hubiera requerido controlar `RESERVA_TTL_HORAS` del dev server desde el test (reinicio de servidor) por poco valor extra sobre la verificación real ya hecha con el script descartable — decisión pragmática, documentada acá por si alguien quiere agregarlo después.
+
 ## Próximo paso concreto
 
-1. **Fase 6** (a definir con el usuario): candidatos son `Pago` con pasarela real (Stripe/Wompi/PayU), expiración automática de reservas `PENDIENTE` (hoy quedan colgadas hasta que un TENANT_ADMIN las confirme o anule a mano), reportes/dashboard de ventas por rifa/sede/vendedor, o notificaciones (email/WhatsApp) al confirmar un pago.
+1. **Fase 7** (a definir con el usuario): `Pago` con pasarela real (Stripe/Wompi/PayU), reportes/dashboard de ventas por rifa/sede/vendedor, notificaciones (email/WhatsApp) al confirmar un pago, o retomar el dominio.
 2. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario — cuando exista, solo hace falta setear `TENANT_BASE_DOMAIN=rifaxapp.com` en cada app de tenant, la lógica de resolución ya está lista para eso.
 3. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
-4. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket arriba) — si no, todo login falla.
+4. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla.
+5. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 5 cerrada de punta a punta: modelo `Rifa`/`Boleto`/`Venta` diseñado e implementado en las 3 apps de tenant, 28 tests unitarios nuevos + 1 e2e nuevo (todos verdes, junto con los 4 specs preexistentes), un bug real de colisión de cookies de sesión encontrado y corregido en `packages/auth` (habría afectado producción). Nada quedó a medias sin commitear. Quien retome: el próximo paso es Fase 6, a definir con el usuario — lee este archivo completo antes de tocar nada, y no te olvides del `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`.
+Fase 6 cerrada de punta a punta: expiración automática de reservas `PENDIENTE` implementada y verificada contra Neon real (no solo mocks), 4 tests unitarios nuevos (72 en el repo, todos verdes). Nada quedó a medias sin commitear. Quien retome: el próximo paso es Fase 7, a definir con el usuario — lee este archivo completo antes de tocar nada, y no te olvides del `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`.
 
 ## Notas técnicas de arquitectura para quien retome
 

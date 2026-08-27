@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { expirarVentasVencidas } from "@rifaxapp/db-tenant";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { requireSession } from "@/lib/require-session";
 import { CerrarRifaForm } from "./cerrar-rifa-form";
@@ -23,6 +24,14 @@ export default async function RifaDetailPage({
 
   const { rifaId } = await params;
   const prisma = await getTenantPrismaClient(session.user.tenantId);
+  // Libera reservas de CLIENTE que nadie confirmó/anuló a tiempo (Fase 6) —
+  // sin esto, "Disponibles/Reservados" de esta página mostraría boletos
+  // colgados en RESERVADO para siempre. Ver expirarVentasVencidas.
+  await expirarVentasVencidas(
+    prisma,
+    process.env.RESERVA_TTL_HORAS ? Number(process.env.RESERVA_TTL_HORAS) : undefined,
+  );
+
   const rifa = await prisma.rifa.findUnique({
     where: { id: rifaId },
     include: { boletoGanador: true },

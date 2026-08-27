@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { expirarVentasVencidas } from "@rifaxapp/db-tenant";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { requireSession } from "@/lib/require-session";
 import { VentaPagoButtons } from "./venta-pago-buttons";
@@ -8,6 +9,7 @@ const ESTADO_LABEL: Record<string, string> = {
   PENDIENTE: "Pendiente",
   PAGADA: "Pagada",
   ANULADA: "Anulada",
+  VENCIDA: "Vencida",
 };
 
 export default async function VentasPage({
@@ -22,6 +24,11 @@ export default async function VentasPage({
 
   const { rifaId } = await params;
   const prisma = await getTenantPrismaClient(session.user.tenantId);
+  await expirarVentasVencidas(
+    prisma,
+    process.env.RESERVA_TTL_HORAS ? Number(process.env.RESERVA_TTL_HORAS) : undefined,
+  );
+
   const rifa = await prisma.rifa.findUnique({ where: { id: rifaId } });
   if (!rifa) notFound();
 
