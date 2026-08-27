@@ -9,7 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@rifaxapp/auth": "^0.0.0",
+    "@rifaxapp/db-control": "^0.0.0",
+    "@rifaxapp/db-tenant": "^0.0.0",
+    "@rifaxapp/tenant-resolver": "^0.0.0",
     "next": "16.3.3",
+    "next-auth": "^5.0.0-beta.32",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

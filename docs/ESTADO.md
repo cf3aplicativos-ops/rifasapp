@@ -4,11 +4,11 @@
 
 ## Última actualización
 
-**2026-08-26** — Fase 3 completa: `packages/auth` + login multi-rol y RBAC real en `apps/admin` (por subdominio, sin necesitar el dominio real).
+**2026-08-26** — Fase 4 completa: `apps/vendedores` (solo rol VENDEDOR) + `apps/clientes` (con registro público de CLIENTE), ambas reusando `packages/auth`.
 
 ## Fase actual
 
-**Fase 3 — packages/auth + RBAC en apps/admin** cerrada. Fases 0, 1 y 2 siguen cerradas (dominio pospuesto a pedido del usuario). Próxima: Fase 4 (a definir — `apps/vendedores`/`apps/clientes`, o diseño de `Rifa`/`Boleto`/`Venta` cuando haya reglas de negocio).
+**Fase 4 — apps/vendedores + apps/clientes** cerrada. Fases 0-3 siguen cerradas (dominio pospuesto a pedido del usuario). Próxima: Fase 5 (a definir con el usuario — probablemente diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` cuando haya reglas de negocio, ya que las 4 apps y el login multi-rol están completos).
 
 ## Qué se completó en esta sesión
 
@@ -150,9 +150,30 @@
 
 Primer deploy real de `rifaxapp-admin`: **`● Ready`** en `https://rifaxapp-admin.vercel.app` (función serverless ~39MB, igual que `superadmin`, muy por debajo del límite de Vercel). No se probó el login multi-tenant contra la URL de producción en esta sesión (necesitaría un tenant real + wildcard de dominio para probar subdominios ahí, o Deployment Protection de por medio) — el mismo código ya se probó de punta a punta contra Neon real en local (ver Fase 3 arriba).
 
+## Fase 4 — apps/vendedores + apps/clientes (2026-08-26)
+
+**Alcance confirmado con el usuario**: `apps/vendedores` es **solo para el rol VENDEDOR**; `apps/clientes` suma un **registro público** (a diferencia de `SEDE_ADMIN`/`VENDEDOR`, que solo el `TENANT_ADMIN` puede invitar desde `apps/admin`, un `CLIENTE` se crea su propia cuenta). Mismo criterio pragmático de fases anteriores: sin `Rifa`/`Boleto`/`Venta`, así que ambas apps llegan solo hasta login + dashboard con info de sesión.
+
+**El gate de rol vive en cada app, no en `packages/auth`**: la config de Auth.js es compartida y agnóstica de rol (cualquier `Usuario` válido del tenant puede autenticarse en cualquier app de tenant) — cada `(protected)/layout.tsx` decide, después de tener la sesión, si el rol corresponde a ese portal. Si no corresponde, **no hay ningún `redirect()`** — se muestra un mensaje simple ("esta cuenta es {rol}, no tiene acceso a este portal") con el mismo `SignOutButton` de Fase 3, evitando por completo la clase de bug de redirects encadenados que costó tanto diagnosticar en Fase 3.
+
+**`apps/vendedores`**: copia del esqueleto de `apps/admin` (auth, proxy, login, tenant-no-encontrado, dashboard) sin CRUD — el gate en `(protected)/layout.tsx` exige `rol === "VENDEDOR"`.
+
+**`apps/clientes`**: mismo esqueleto, más `src/app/registro/` (pública, excluida del matcher del proxy): `registerAction` resuelve el tenant vía `headers()`, valida email + password (mínimo 8 caracteres), chequea email no duplicado, inserta `Usuario` con `rol: CLIENTE, sedeId: null`, y llama `signIn()` para loguear automático — mismo patrón que `loginAction`, sin ningún problema de redirect encadenado (a diferencia de `signOut`, acá no hay nada raro). El link "¿No tenés cuenta?" en `/login` apunta a `/registro`.
+
+**Env vars**: mismas 4 que `admin` (`POSTGRES_PRISMA_URL`, `DATABASE_URL_UNPOOLED`, `CONTROL_PLANE_ENCRYPTION_KEY` compartida) más un `AUTH_SECRET` propio y distinto por app — copiadas a `.env.local` de cada una y subidas a sus proyectos Vercel (`rifaxapp-vendedores`, `rifaxapp-clientes`) sin bloqueo del clasificador.
+
+**Pruebas** (todas verdes, 40 unit + 4 e2e):
+- Vitest: `apps/clientes/src/app/registro/actions.test.ts` (email inválido, password corta, email duplicado, creación exitosa con `sedeId: null`). Tuvo que mockearse también el paquete `next-auth` (no solo `@/auth`) porque `actions.ts` importa `AuthError` directo de ahí, y cargar el paquete real rompía la resolución de módulos de Vitest (`next/server` no resuelve bien fuera de un runtime Next real).
+- Playwright: `e2e/vendedores-login-flow.spec.ts` (crea tenant+sede+VENDEDOR vía superadmin/admin, login del VENDEDOR en `apps/vendedores` confirma su `sedeId`, y el `TENANT_ADMIN` del mismo tenant ve el mensaje de sin acceso al intentar entrar ahí) y `e2e/clientes-registro-flow.spec.ts` (registro público real, auto-login, `rol=CLIENTE`/sin sede). Dos fallos menores de locator ambiguo en el primer intento de cada spec (el texto del rol/email aparecía dos veces en la página — header + dashboard, o el "route announcer" de accesibilidad de Next.js) — resueltos acotando el selector (`{exact: true}`, `getByRole("heading", ...)`, `.getByRole("main").getByText(...)`), no bugs reales de la app.
+- `next build` de producción de ambas apps (y `superadmin`/`admin`, para confirmar que nada se rompió) vía Turbo, verde.
+
+## Estado de deploy — apps/vendedores y apps/clientes (2026-08-26)
+
+Ambas desplegadas por primera vez, `● Ready`: revisar `vercel ls` en cada proyecto (`rifaxapp-vendedores`, `rifaxapp-clientes`) para las URLs exactas si hace falta.
+
 ## Próximo paso concreto
 
-1. **Fase 4** (a definir con el usuario): `apps/vendedores`/`apps/clientes` reusando `packages/auth`, o directamente diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` en `db-tenant` cuando haya reglas de negocio definidas.
+1. **Fase 5** (a definir con el usuario): las 4 apps y el login multi-rol ya están completos — el paso natural es diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` en `packages/db-tenant` cuando el usuario defina las reglas de negocio (precios, métodos de pago, estados de una rifa, cómo se vende un boleto), y recién ahí construir las pantallas reales en cada app.
 2. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario — cuando exista, solo hace falta setear `TENANT_BASE_DOMAIN=rifaxapp.com` en cada app de tenant, la lógica de resolución ya está lista para eso.
 3. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
 
