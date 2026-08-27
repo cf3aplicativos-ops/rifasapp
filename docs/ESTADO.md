@@ -4,15 +4,15 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 10 completa: `typescript` bajado a la línea 6.x en todo el repo, `npm run lint` vuelve a funcionar (encontró y se arreglaron 2 bugs reales de React).
+**2026-08-27** — Fase 11 completa: bug real de producción que impedía crear CUALQUIER tenant desde el deploy de `rifaxapp-superadmin` (Prisma no ubicaba su motor de consultas en el runtime serverless de Vercel), diagnosticado y resuelto.
 
 ## Fase actual
 
-**Fase 10 — arreglar el lint** cerrada. Fases 0-9 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (instrucciones de compra + conexión a Vercel ya dadas en el chat, retomar cuando el usuario lo tenga). **Pendientes críticos del usuario** (ninguno bloquea seguir desarrollando, sí bloquean que el producto cobre/notifique de verdad):
+**Fase 11 — fix de provisioning en producción** cerrada. Fases 0-10 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (instrucciones de compra + conexión a Vercel ya dadas en el chat, retomar cuando el usuario lo tenga). **Pendientes críticos del usuario** (ninguno bloquea seguir desarrollando, sí bloquean que el producto cobre/notifique de verdad):
 1. Wompi: cargar las llaves REALES de sandbox (hoy corre con placeholders de prueba, ver Fase 8) y configurar la URL del webhook en su dashboard.
 2. Resend: crear cuenta en resend.com, sacar una API key, y decidir si verifica un dominio propio o arranca con el `onboarding@resend.dev` de pruebas (que solo entrega a la casilla con la que se registró la cuenta, no sirve para clientes reales) — ver Fase 9.
 
-Próxima: Fase 11, a definir con el usuario.
+Próxima: Fase 12, a definir con el usuario.
 
 ## Qué se completó en esta sesión
 
@@ -306,18 +306,44 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: push a `main` (`580b848`) disparó el auto-deploy de las 4 apps; confirmado `● Ready` en Production para `rifaxapp-admin`, `rifaxapp-clientes`, `rifaxapp-vendedores` y `rifaxapp-superadmin`.
 
+## Fase 11 — fix de provisioning en producción: Prisma no ubicaba su motor de consultas en Vercel (2026-08-27)
+
+**Cómo apareció**: el usuario intentó crear su primer tenant real ("mirifa") desde el deploy de producción de `rifaxapp-superadmin` y recibió "No se pudo provisionar la base de datos del tenant. Quedó en estado ERROR." — screenshot, sin texto adicional. Se tomó como pedido implícito de arreglarlo: es la función central del producto y estaba rota en producción real (nunca se había probado `createTenant` contra un deploy de Vercel de verdad — todas las Fases 1-10 se verificaron solo contra dev local en Windows o, cuando mucho, contra `next build` local).
+
+**Causa raíz**: `packages/db-tenant` genera su cliente Prisma con un `output` propio (`src/generated/client`, ver Fase 2 — necesario para no chocar con el cliente de `db-control`). En el runtime serverless de Vercel, la lógica de Prisma para ubicar su motor de consultas nativo (`libquery_engine-rhel-openssl-3.0.x.so.node`) mezcla rutas de build-time (`/vercel/path0/...`) con las de runtime (`/var/task/...`) y, con un `output` custom en un monorepo, nunca da con dónde termina realmente el archivo — aunque el archivo SÍ estaba viajando en el deploy. Se manifestaba como `PrismaClientInitializationError: could not locate the Query Engine for runtime "rhel-openssl-3.0.x"` en cualquier llamada a `getTenantPrismaClient`/`createTenantPrismaClient` (o sea, en cualquier operación sobre la DB de un tenant) — nunca afectó a `db-control` (output default de `@prisma/client`, sin este problema).
+
+**3 intentos que NO alcanzaron por sí solos** (cada uno necesario pero no suficiente — no se revirtieron, quedan los 3 en el repo):
+1. `binaryTargets = ["native", "rhel-openssl-3.0.x"]` explícito en `packages/db-tenant/prisma/schema.prisma` — sin esto el binario de Linux ni se generaba. Necesario para que el archivo exista, pero no alcanzaba para que viajara al bundle serverless.
+2. `outputFileTracingIncludes` en los 4 `next.config.ts` — tampoco alcanzó solo.
+3. `outputFileTracingRoot: path.join(__dirname, "../..")` en los 4 `next.config.ts` (el fix real que faltaba para 2): por default Next.js **solo traza dentro de la carpeta de la app** — `packages/db-tenant`, al estar afuera, queda excluido del tracing sin importar qué diga `outputFileTracingIncludes`, algo que la propia documentación de Next.js dice explícito. Verificado localmente inspeccionando el `.nft.json` real (`.next/server/app/**/*.nft.json`) y confirmando ahí mismo que el `.so.node` ya aparecía listado — **pero aun así, en producción, siguió fallando con el mismo error**. Lección de esta fase: que el binario esté correctamente empaquetado (confirmado inspeccionando el trace, no solo "el build no tira error") no prueba que Prisma después lo *encuentre* en runtime — son dos problemas distintos.
+
+**El breakthrough — debug endpoint temporal en vez de seguir adivinando**: en vez de un 4to intento a ciegas, se agregó `apps/superadmin/src/app/api/debug-fs/route.ts` (ya borrado, ver abajo), un endpoint que corría `fs.existsSync`/`fs.readdirSync` sobre una lista de rutas candidatas directo en el Lambda desplegado. Confirmó que el archivo SÍ estaba en `/var/task/packages/db-tenant/src/generated/client/libquery_engine-rhel-openssl-3.0.x.so.node` — pero ninguna de las rutas que Prisma calcula internamente coincidía con esa. El problema nunca fue de empaquetado (fixes 1-3 ya lo habían resuelto bien) sino de que Prisma **adivina mal** dónde buscar, específicamente en este layout de monorepo con `output` custom.
+
+**Fix que funcionó** ([packages/db-tenant/src/client.ts](packages/db-tenant/src/client.ts)): pasarle a Prisma la ruta exacta a mano, por instancia, vía la opción interna (no documentada pero real y tipada en el runtime generado) `__internal.engine.binaryPath` del constructor de `PrismaClient` — a diferencia de la env var `PRISMA_QUERY_ENGINE_LIBRARY` (global, afectaría también al cliente de `db-control` que usa la ubicación default y nunca tuvo este problema), esto es por instancia. La ruta se calcula con `process.cwd()` (confirmado empíricamente vía el debug endpoint: en cada función serverless de Vercel es `/var/task/apps/<app>`) + subir dos niveles al monorepo, y solo aplica si `process.env.VERCEL` es verdadero (en dev local Windows, Prisma ya resuelve bien su propio motor). El tipo generado de `PrismaClientOptions` no declara `__internal` (a propósito, es una opción interna) — se usó un `as ConstructorParameters<typeof PrismaClient>[0]` con un comentario explicando por qué es intencional.
+
+**Verificación real, no solo local**: a diferencia de los 3 intentos previos, esta vez se probó contra la URL de producción real (`rifaxapp-superadmin-*.vercel.app`) con el navegador, después de correr localmente el pipeline completo (tsc limpio, 116 tests, build 6/6). Crear un tenant de prueba ("verificacion-fix-5") funcionó de punta a punta — quedó `ACTIVO`. **Gotcha de automatización encontrado en el camino**: un click por coordenadas (`computer` del Browser tool) sobre el botón "Crear tenant" falló en silencio al menos una vez — no disparó ningún POST (confirmado con `read_network_requests`, cero requests). Cambiar a un click disparado por JS (`document.querySelectorAll('button').find(...).click()` vía `javascript_tool`) resolvió esto y se volvió el método usado el resto de la sesión — importante no confundir "sigue fallando" con "el click no se registró" al verificar fixes de este tipo.
+
+**Cleanup post-fix**: se borraron las 5 filas de tenant acumuladas en el control-plane real (la "mirifa" original del usuario, que había quedado en `ERROR`, más 4 tenants de prueba creados durante el debugging: `verificacion-fix`, `-2`, `-4`, `-5`) — confirmado con la tabla de `/tenants` mostrando "Todavía no hay tenants." al final. Esto también confirma que `deleteTenant` (que también usa `getTenantPrismaClient`/`evictTenantPrismaClient`) quedó funcionando en producción, no solo `createTenant`. El endpoint de debug (`apps/superadmin/src/app/api/debug-fs/route.ts`) se borró una vez resuelto el bug — ya cumplió su propósito, estaba marcado desde el commit original como temporal.
+
+**No verificado explícitamente en esta fase** (se asume que aplica igual, por compartir el mismo `createTenantPrismaClient`, pero no se probó en vivo): que `apps/admin`/`apps/vendedores`/`apps/clientes` también lean/escriban bien datos de tenant contra sus deploys de producción — solo se ejercitó el flujo de `apps/superadmin` (crear/borrar tenant). Si alguien retoma y quiere cerrar esa duda, alcanza con crear un tenant real y probar login + una acción cualquiera (crear una `Sede`, por ejemplo) en `apps/admin` de producción.
+
+**Pruebas**: 116 tests unitarios sin cambios (el fix no tocó lógica de negocio, solo la construcción del `PrismaClient` de tenant) + `tsc --noEmit` limpio en las 4 apps + `next build` 6/6 vía Turbo — todo verde localmente antes de cada push. La prueba que realmente importó fue la manual contra producción real, descrita arriba.
+
+**Deploy**: varios pushes a `main` durante esta fase (uno por intento de fix, más uno final de cleanup) dispararon el auto-deploy de las 4 apps; el fix real vive en `packages/db-tenant` así que afecta a las 4, pero solo se verificó en vivo contra `rifaxapp-superadmin`.
+
 ## Próximo paso concreto
 
-1. **Fase 11** (a definir con el usuario): a elegir cuando el usuario quiera.
+1. **Fase 12** (a definir con el usuario): el usuario puede reintentar crear su tenant "mirifa" (o cualquier otro) ahora que el provisioning real funciona en producción.
 2. **Dominio**: bloqueado en que el usuario compre `rifaxapp.com` — instrucciones ya dadas, retomar apenas confirme que lo tiene.
 3. **Wompi**: bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard — ver Fase 8.
 4. **Resend**: bloqueado en que el usuario cree la cuenta y pase la API key — ver Fase 9.
 5. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
 6. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
+7. **Lección de esta fase, para cualquier bug futuro de "funciona local pero no en Vercel"**: ni "el build no tira error" ni siquiera inspeccionar el `.nft.json` de trace alcanzan como prueba de que algo funciona en producción — hay que probar contra el deploy real. Si el error es opaco, un endpoint de debug temporal con `fs.existsSync`/`readdirSync` sobre el filesystem real del Lambda (borrado apenas se resuelve) da evidencia concreta mucho más rápido que seguir adivinando fixes.
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 10 cerrada de punta a punta: `typescript` bajado a `6.0.3` en las 12 `package.json` del repo, `npm run lint` funciona de nuevo y de paso encontró/corrigió 2 bugs reales de React (`setState` síncrono en `useEffect`, arreglado con el patrón de ajustar estado durante el render). Type-check, tests unitarios, build de producción y los 6 e2e del repo — todos verdes. Nada quedó a medias sin commitear. Quien retome: lee este archivo completo antes de tocar nada — siguen los mismos 2 pendientes críticos del usuario (Wompi y Resend con credenciales de prueba) y el dominio sin comprar, ninguno es un olvido.
+Fase 11 cerrada de punta a punta: bug real de producción que bloqueaba crear cualquier tenant (Prisma no ubicaba su motor de consultas en el runtime de Vercel con el `output` custom de `db-tenant` en este monorepo) diagnosticado con un endpoint de debug temporal (ya borrado) y resuelto con `__internal.engine.binaryPath` en [packages/db-tenant/src/client.ts](packages/db-tenant/src/client.ts). Verificado contra producción real (no solo local): tenant de prueba creado y borrado de punta a punta en `rifaxapp-superadmin`. Se limpiaron las 5 filas de tenant acumuladas en el control-plane real, incluida la "mirifa" original del usuario que había quedado en `ERROR` — la tabla de tenants queda vacía, lista para que el usuario reintente. Type-check, 116 tests unitarios y build de producción (6/6) verdes. Nada quedó a medias sin commitear. Quien retome: siguen los mismos 2 pendientes críticos del usuario (Wompi y Resend con credenciales de prueba) y el dominio sin comprar, ninguno es un olvido.
 
 ## Notas técnicas de arquitectura para quien retome
 
