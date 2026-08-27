@@ -8,6 +8,7 @@ import {
   confirmarPagoDeVenta as confirmarPagoDeVentaShared,
   anularVentaPendiente as anularVentaPendienteShared,
 } from "@rifaxapp/db-tenant";
+import { notificarGanador, notificarPagoConfirmado } from "@rifaxapp/notifications";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { auth } from "@/auth";
 
@@ -141,6 +142,9 @@ export async function cerrarRifa(
     data: { estado: RifaEstado.CERRADA, fechaSorteo: new Date(), boletoGanadorId: boletoGanador.id },
   });
 
+  // Fase 9: nunca bloquea el cierre de la rifa si el email falla.
+  await notificarGanador(prisma, rifaId).catch(() => {});
+
   revalidatePath("/rifas");
   revalidatePath(`/rifas/${rifaId}`);
   return undefined;
@@ -161,6 +165,8 @@ export async function confirmarPagoVenta(ventaId: string) {
   }
 
   await confirmarPagoDeVentaShared(prisma, ventaId);
+  // Fase 9: nunca bloquea la confirmación del pago si el email falla.
+  await notificarPagoConfirmado(prisma, ventaId).catch(() => {});
   revalidatePath(`/rifas/${venta.rifaId}/ventas`);
 }
 

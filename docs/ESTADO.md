@@ -4,11 +4,15 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 8 completa: pago real con **Wompi** (Web Checkout + webhook) para la autocompra de `CLIENTE` en `apps/clientes`.
+**2026-08-27** — Fase 9 completa: notificaciones por **email** (Resend) al `CLIENTE` cuando se confirma su pago y cuando gana una rifa.
 
 ## Fase actual
 
-**Fase 8 — pasarela de pago Wompi** cerrada. Fases 0-7 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (usuario confirmó 2026-08-27 que no lo compró aún — no puedo comprarlo yo, es una transacción con dinero real; instrucciones de compra + conexión a Vercel quedaron dadas en el chat, retomar cuando el usuario lo tenga). **Pendiente crítico del usuario**: cargar las llaves REALES de sandbox de Wompi (hoy corre con placeholders de prueba, ver sección Fase 8) y configurar la URL del webhook en su dashboard de Wompi antes de poder cobrar de verdad. Próxima: Fase 9, a definir con el usuario.
+**Fase 9 — notificaciones por email** cerrada. Fases 0-8 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (instrucciones de compra + conexión a Vercel ya dadas en el chat, retomar cuando el usuario lo tenga). **Pendientes críticos del usuario** (ninguno bloquea seguir desarrollando, sí bloquean que el producto cobre/notifique de verdad):
+1. Wompi: cargar las llaves REALES de sandbox (hoy corre con placeholders de prueba, ver Fase 8) y configurar la URL del webhook en su dashboard.
+2. Resend (nuevo, Fase 9): crear cuenta en resend.com, sacar una API key, y decidir si verifica un dominio propio o arranca con el `onboarding@resend.dev` de pruebas (que solo entrega a la casilla con la que se registró la cuenta, no sirve para clientes reales).
+
+Próxima: Fase 10, a definir con el usuario.
 
 ## Qué se completó en esta sesión
 
@@ -266,18 +270,41 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: push a `main` (`5658d4d`) disparó el auto-deploy. Se agregaron las 3 env vars `WOMPI_*` (valores de prueba) a `rifaxapp-clientes` en Production/Preview/Development con `vercel env add`, y se hizo `vercel redeploy` para que el build ya construido las tomara. Confirmado `● Ready` en `rifaxapp-admin` y `rifaxapp-clientes` (únicas apps tocadas esta fase).
 
+## Fase 9 — notificaciones por email (2026-08-27)
+
+**Decisiones confirmadas con el usuario**: solo email por ahora (WhatsApp Business API queda pospuesto — requiere cuenta verificada en Meta/Twilio/360dialog, mucho más trámite que código); proveedor **Resend** (sin cuenta previa, se arranca de cero); dispara en dos eventos: pago confirmado Y ganador de rifa.
+
+**Nuevo package `packages/notifications`** (dependencia nueva de `apps/admin` y `apps/clientes`, no de `vendedores` — las ventas de `VENDEDOR` son siempre presenciales/cash, no hay a quién notificarle por email en ese flujo):
+- `src/resend-client.ts` → `enviarEmail({to, subject, html})`: wrapper mínimo sobre el SDK `resend`. **Nunca tira** — si falta `RESEND_API_KEY` es un no-op con un `console.warn`; si Resend devuelve `{error}` (no tira excepción, según su propio SDK) se loguea con `console.error` y se sigue. Enviar un email es un "nice to have", jamás puede romper el flujo de negocio que lo dispara.
+- `src/pago-confirmado.ts` → `notificarPagoConfirmado(prisma, ventaId)`: busca la `Venta` con `cliente`/`rifa`/`boletos`, si `venta.cliente?.email` no existe (venta presencial de un `VENDEDOR` a alguien sin cuenta) no hace nada — solo `CLIENTE` con cuenta recibe email.
+- `src/ganador.ts` → `notificarGanador(prisma, rifaId)`: busca la `Rifa` con `boletoGanador.venta.cliente`, mismo criterio — si el boleto ganador lo compró un `VENDEDOR` a alguien sin cuenta, no hay a quién avisarle por acá (hay que avisarle a mano con el `compradorNombre`/`Telefono` que se ve en `/rifas/[id]/ventas`).
+
+**Dónde se llaman** (siempre con `.catch(() => {})` extra por las dudas, encima del propio try/catch interno de cada función):
+- `apps/admin/.../rifas/actions.ts`: `confirmarPagoVenta` llama a `notificarPagoConfirmado` después de que el helper compartido de `venta-lifecycle.ts` confirma el pago; `cerrarRifa` llama a `notificarGanador` después de guardar `boletoGanadorId`.
+- `apps/clientes/.../api/webhooks/wompi/route.ts`: la rama `APPROVED` ahora hace `await confirmarPagoDeVenta(...)` seguido de `await notificarPagoConfirmado(...).catch(() => {})`, **dentro** del mismo `try` que ya manejaba la idempotencia — así el email SOLO sale la primera vez que la venta pasa a PAGADA, no en cada reintento de Wompi sobre un evento duplicado (antes `confirmarPagoDeVenta` se llamaba con su propio `.catch(() => {})` suelto; se movió adentro del try para poder distinguir "confirmó de verdad" de "ya estaba confirmada").
+
+**Sin cuenta de Resend real todavía**: `RESEND_API_KEY` no está seteada en ningún `.env.local` ni en Vercel — corre en modo no-op (confirmado en los logs de dev dos veces distinto: `[notificaciones] RESEND_API_KEY no configurada — no se envía "..."`, tanto desde `apps/admin` como desde el webhook de `apps/clientes`, durante los e2e). El código está completo y probado; falta que el usuario:
+1. Cree cuenta en resend.com y saque una API key.
+2. La cargue como `RESEND_API_KEY` en `apps/admin/.env.local` y `apps/clientes/.env.local` (local) y en Vercel (`rifaxapp-admin`, `rifaxapp-clientes`).
+3. Decida `EMAIL_FROM` (opcional, default `Rifaxapp <onboarding@resend.dev>`) — ese remitente de prueba de Resend **solo entrega a la casilla con la que se creó la cuenta**, no sirve para mandarle a clientes reales; para eso hace falta verificar un dominio propio en resend.com/domains.
+
+**Pruebas**: `packages/notifications` tiene 13 tests unitarios (`resend-client.test.ts`: 4, mockeando el SDK `resend`; `pago-confirmado.test.ts`: 5; `ganador.test.ts`: 4 — todos verifican el criterio "sin cliente con email, no se envía nada" y que un error de prisma nunca se propaga). `apps/admin/.../rifas/actions.test.ts` y `apps/clientes/.../api/webhooks/wompi/route.test.ts` extendidos para verificar que `notificarPagoConfirmado`/`notificarGanador` se llaman en el momento correcto (y que un evento duplicado del webhook NO reenvía el email). **116 tests en el repo, todos verdes.** No se agregó un e2e nuevo dedicado — no hay forma de verificar una entrega de email real sin una cuenta de Resend de verdad (mismo criterio que con Wompi en Fase 8); en cambio se re-corrieron los 6 e2e existentes (algunos necesitaron un reintento por lentitud del entorno — sesión larga, muchos dev servers/conexiones a Neon abiertas durante horas, timeouts default de 5s quedaron cortos un par de veces; ningún fallo fue funcional, confirmado revisando los logs del dev server) y quedaron todos verdes, incluyendo la línea de log que confirma que el no-op de notificaciones se dispara correctamente en ambos puntos de la app.
+
+**Deploy**: pendiente de confirmar en esta sesión — ver "Próximo paso concreto".
+
 ## Próximo paso concreto
 
-1. **Fase 9** (a definir con el usuario): notificaciones (email/WhatsApp) al confirmar un pago, o Multi Zones apenas el usuario tenga el dominio comprado.
+1. **Fase 10** (a definir con el usuario): Multi Zones apenas haya dominio, o lo que el usuario prefiera.
 2. **Dominio**: bloqueado en que el usuario compre `rifaxapp.com` — instrucciones ya dadas, retomar apenas confirme que lo tiene.
-3. **Wompi**: bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard — ver los 3 puntos de "Pendiente crítico del usuario" en Fase 8 arriba.
-4. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
-5. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
-6. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
+3. **Wompi**: bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard — ver Fase 8.
+4. **Resend** (nuevo): bloqueado en que el usuario cree la cuenta y pase la API key — ver los 3 puntos de Fase 9 arriba.
+5. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
+6. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
+7. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 8 cerrada de punta a punta: pago real con Wompi (Web Checkout + webhook) implementado, con la lógica de negocio de `Venta` refactorizada a `packages/db-tenant` para que el webhook la reuse sin duplicar transacciones. 31 tests unitarios nuevos (103 en el repo) + 1 e2e nuevo, todos verdes junto con los 5 preexistentes. Corre con credenciales de Wompi de prueba — **queda explícitamente bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard antes de poder cobrar de verdad** (no es un olvido, está en "Pendiente crítico del usuario" arriba). Nada quedó a medias sin commitear. Quien retome: lee este archivo completo antes de tocar nada, no te olvides del `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`, y si ves un 404 fantasma probá `rm -rf apps/*/.next` antes de asumir un bug real.
+Fase 9 cerrada de punta a punta: notificaciones por email (Resend) implementadas para pago confirmado y ganador de rifa, disparadas desde `apps/admin` y el webhook de Wompi en `apps/clientes`, con manejo de errores que nunca bloquea el flujo de negocio. 13 tests unitarios nuevos (116 en el repo) + los action tests existentes extendidos, todos verdes. Los 6 e2e del repo se re-corrieron y confirman (vía logs del dev server) que el wiring de notificaciones funciona en los dos puntos de disparo, corriendo en modo no-op porque todavía no hay cuenta de Resend real. Nada quedó a medias sin commitear. Quien retome: lee este archivo completo antes de tocar nada — hay 2 pendientes críticos del usuario (Wompi y Resend, ambos con llaves de prueba/no-op hoy) antes de que el producto cobre y notifique de verdad, no son un olvido.
 
 ## Notas técnicas de arquitectura para quien retome
 

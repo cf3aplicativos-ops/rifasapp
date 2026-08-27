@@ -1,4 +1,5 @@
 import { confirmarPagoDeVenta, anularVentaPendiente } from "@rifaxapp/db-tenant";
+import { notificarPagoConfirmado } from "@rifaxapp/notifications";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { verifyWompiEventChecksum } from "@/lib/wompi";
 
@@ -51,15 +52,20 @@ export async function POST(request: Request): Promise<Response> {
   try {
     if (status === "APPROVED") {
       // Idempotente: si ya estaba PAGADA (evento duplicado, Wompi reintenta
-      // igual con 2xx), confirmarPagoDeVenta tira y lo ignoramos acá.
-      await confirmarPagoDeVenta(prisma, ventaId).catch(() => {});
+      // igual con 2xx), confirmarPagoDeVenta tira acá — el catch de abajo lo
+      // ignora, y justamente por eso el email SOLO sale si esta llamada fue
+      // la que realmente confirmó el pago (no en cada reintento del evento).
+      await confirmarPagoDeVenta(prisma, ventaId);
+      await notificarPagoConfirmado(prisma, ventaId).catch(() => {});
     } else if (status === "DECLINED" || status === "VOIDED" || status === "ERROR") {
       await anularVentaPendiente(prisma, ventaId).catch(() => {});
     }
     // PENDING (o cualquier otro status futuro): no-op, esperamos el próximo evento.
   } catch {
+    // O bien confirmarPagoDeVenta/anularVentaPendiente tiraron porque la
+    // venta ya no estaba PENDIENTE (evento duplicado, ya resuelto), o
     // getTenantPrismaClient falló (tenantId inválido, DB no disponible) —
-    // no es nuestro problema reintentable por Wompi, ack de todas formas.
+    // ninguno es un problema reintentable por Wompi, ack de todas formas.
   }
 
   return new Response("ok", { status: 200 });

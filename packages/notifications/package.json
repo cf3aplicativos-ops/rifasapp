@@ -1,0 +1,21 @@
+{
+  "name": "@rifaxapp/notifications",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rifaxapp/db-tenant": "*",
+    "resend": "^4.0.1"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "@types/node": "26.3.0",
+    "typescript": "7.0.2"
+  }
+}

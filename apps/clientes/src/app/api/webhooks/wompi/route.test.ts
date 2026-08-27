@@ -12,6 +12,11 @@ vi.mock("@rifaxapp/tenant-resolver", () => ({
   getTenantPrismaClient: (tenantId: string) => getTenantPrismaClient(tenantId),
 }));
 
+const notificarPagoConfirmado = vi.fn().mockResolvedValue(undefined);
+vi.mock("@rifaxapp/notifications", () => ({
+  notificarPagoConfirmado: (...args: unknown[]) => notificarPagoConfirmado(...args),
+}));
+
 // La lógica de la firma en sí (SHA256, orden de concatenación, etc.) ya
 // tiene su propio test exhaustivo en src/lib/wompi.test.ts — acá solo
 // importa si el checksum pasó o no, para probar el DESPACHO de la ruta
@@ -70,12 +75,13 @@ describe("POST /api/webhooks/wompi", () => {
     expect(getTenantPrismaClient).not.toHaveBeenCalled();
   });
 
-  it("APPROVED confirma el pago de la venta correspondiente", async () => {
+  it("APPROVED confirma el pago de la venta correspondiente y notifica al cliente", async () => {
     const res = await POST(requestWith(payloadFor("APPROVED", "t1--v1")));
 
     expect(res.status).toBe(200);
     expect(getTenantPrismaClient).toHaveBeenCalledWith("t1");
     expect(confirmarPagoDeVenta).toHaveBeenCalledWith(expect.anything(), "v1");
+    expect(notificarPagoConfirmado).toHaveBeenCalledWith(expect.anything(), "v1");
     expect(anularVentaPendiente).not.toHaveBeenCalled();
   });
 
@@ -95,12 +101,13 @@ describe("POST /api/webhooks/wompi", () => {
     expect(anularVentaPendiente).not.toHaveBeenCalled();
   });
 
-  it("es idempotente: un APPROVED duplicado (venta ya PAGADA) sigue respondiendo 200", async () => {
+  it("es idempotente: un APPROVED duplicado (venta ya PAGADA) sigue respondiendo 200 sin reenviar el email", async () => {
     confirmarPagoDeVenta.mockRejectedValue(new Error("Solo se puede confirmar una venta en estado PENDIENTE"));
 
     const res = await POST(requestWith(payloadFor("APPROVED", "t1--v1")));
 
     expect(res.status).toBe(200);
+    expect(notificarPagoConfirmado).not.toHaveBeenCalled();
   });
 
   it("responde 400 si el body no es JSON válido", async () => {

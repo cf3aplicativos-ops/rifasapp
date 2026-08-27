@@ -31,6 +31,13 @@ vi.mock("@rifaxapp/db-tenant", () => ({
   anularVentaPendiente: (prisma: unknown, ventaId: string) => anularVentaPendiente(prisma, ventaId),
 }));
 
+const notificarGanador = vi.fn().mockResolvedValue(undefined);
+const notificarPagoConfirmado = vi.fn().mockResolvedValue(undefined);
+vi.mock("@rifaxapp/notifications", () => ({
+  notificarGanador: (prisma: unknown, rifaId: string) => notificarGanador(prisma, rifaId),
+  notificarPagoConfirmado: (prisma: unknown, ventaId: string) => notificarPagoConfirmado(prisma, ventaId),
+}));
+
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const { crearRifa, activarRifa, cancelarRifa, cerrarRifa, confirmarPagoVenta, anularVenta } =
@@ -156,7 +163,7 @@ describe("cerrarRifa", () => {
     expect(rifaUpdate).not.toHaveBeenCalled();
   });
 
-  it("cierra la rifa con el boleto ganador", async () => {
+  it("cierra la rifa con el boleto ganador y notifica al ganador", async () => {
     rifaFindUnique.mockResolvedValue({ id: "r1", estado: "ACTIVA" });
     boletoFindUnique.mockResolvedValue({ id: "b1", estado: "VENDIDO" });
     const result = await cerrarRifa(undefined, formDataFrom({ rifaId: "r1", numeroGanador: "5" }));
@@ -165,6 +172,7 @@ describe("cerrarRifa", () => {
       where: { id: "r1" },
       data: { estado: "CERRADA", fechaSorteo: expect.any(Date), boletoGanadorId: "b1" },
     });
+    expect(notificarGanador).toHaveBeenCalledWith(expect.anything(), "r1");
   });
 });
 
@@ -180,10 +188,11 @@ describe("confirmarPagoVenta", () => {
     expect(confirmarPagoDeVenta).not.toHaveBeenCalled();
   });
 
-  it("delega la transacción al helper compartido de @rifaxapp/db-tenant", async () => {
+  it("delega la transacción al helper compartido y notifica al cliente", async () => {
     ventaFindUnique.mockResolvedValue({ id: "v1", estado: "PENDIENTE", rifaId: "r1" });
     await confirmarPagoVenta("v1");
     expect(confirmarPagoDeVenta).toHaveBeenCalledWith(expect.anything(), "v1");
+    expect(notificarPagoConfirmado).toHaveBeenCalledWith(expect.anything(), "v1");
   });
 
   it("propaga el error del helper si la venta no está PENDIENTE", async () => {
