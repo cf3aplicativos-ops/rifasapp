@@ -12,6 +12,7 @@
     "@rifaxapp/db-control": "^0.0.0",
     "@rifaxapp/db-tenant": "^0.0.0",
     "@rifaxapp/tenant-resolver": "^0.0.0",
+    "@rifaxapp/ui": "^0.0.0",
     "next": "16.3.3",
     "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.0",

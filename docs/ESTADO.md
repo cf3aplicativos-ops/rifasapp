@@ -4,15 +4,15 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 11 completa: bug real de producción que impedía crear CUALQUIER tenant desde el deploy de `rifaxapp-superadmin` (Prisma no ubicaba su motor de consultas en el runtime serverless de Vercel), diagnosticado y resuelto.
+**2026-08-27** — Fase 12 completa: rediseño visual profesional (login + panel con menú lateral) en las 4 apps vía un design system compartido nuevo (`@rifaxapp/ui`), más una pantalla de configuración de dominio en superadmin.
 
 ## Fase actual
 
-**Fase 11 — fix de provisioning en producción** cerrada. Fases 0-10 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (instrucciones de compra + conexión a Vercel ya dadas en el chat, retomar cuando el usuario lo tenga). **Pendientes críticos del usuario** (ninguno bloquea seguir desarrollando, sí bloquean que el producto cobre/notifique de verdad):
+**Fase 12 — rediseño visual + menú lateral + configuración de dominio** cerrada. Fases 0-11 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (instrucciones de compra + conexión a Vercel ya dadas en el chat y ahora también en `/configuracion` de superadmin, retomar cuando el usuario lo tenga). **Pendientes críticos del usuario** (ninguno bloquea seguir desarrollando, sí bloquean que el producto cobre/notifique de verdad):
 1. Wompi: cargar las llaves REALES de sandbox (hoy corre con placeholders de prueba, ver Fase 8) y configurar la URL del webhook en su dashboard.
 2. Resend: crear cuenta en resend.com, sacar una API key, y decidir si verifica un dominio propio o arranca con el `onboarding@resend.dev` de pruebas (que solo entrega a la casilla con la que se registró la cuenta, no sirve para clientes reales) — ver Fase 9.
 
-Próxima: Fase 12, a definir con el usuario.
+Próxima: Fase 13, a definir con el usuario.
 
 ## Qué se completó en esta sesión
 
@@ -331,19 +331,44 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: varios pushes a `main` durante esta fase (uno por intento de fix, más uno final de cleanup) dispararon el auto-deploy de las 4 apps; el fix real vive en `packages/db-tenant` así que afecta a las 4, pero solo se verificó en vivo contra `rifaxapp-superadmin`.
 
+## Fase 12 — rediseño visual profesional + menú lateral + configuración de dominio (2026-08-27)
+
+**Contexto**: con el fix de Fase 11 en producción, el usuario creó su tenant "mirifa" real y pidió una apariencia más profesional para el login y el panel de superadmin, con las opciones en un menú lateral. Confirmado con el usuario: el mismo tratamiento (login + sidebar) aplica a las 4 apps, no solo superadmin (comparten exactamente el mismo patrón desde Fase 3-4); y el campo de dominio nuevo solo **guarda el valor y muestra instrucciones** — no llama a la API de Vercel ni cambia nada por su cuenta.
+
+**Nuevo package `@rifaxapp/ui`** (repotenciado desde `packages/ui`, el scaffold de create-turbo sin usar — nada lo importaba, confirmado con grep antes de tocarlo; renombrado de `@repo/ui`, único cambio de nombre — `@repo/eslint-config`/`@repo/typescript-config` siguen como estaban, son las herramientas internas del monorepo, no paquetes runtime):
+- `theme.css`: tokens de tema compartidos vía `@theme` de Tailwind v4 (paleta slate + acento índigo `brand-*`, más `--color-sidebar`/`--color-sidebar-foreground`/`--radius-card`) — no pisa `--background`/`--foreground` ni el dark mode que ya tenía cada app.
+- `AuthShell` (Server Component): envoltorio de los 4 `login/page.tsx` — marca/monograma SVG inline (sin assets externos), título/subtítulo, banner de error, tarjeta con sombra. Cero cambios de lógica (`loginAction`, resolución de tenant por Host, redirect a `/tenant-no-encontrado` — todo intacto).
+- `SidebarShell` (**Client Component**, `usePathname` para resaltar el link activo + `useState` para el menú hamburguesa en mobile, sin librerías nuevas): reemplaza el header horizontal de los 4 `(protected)/layout.tsx`. No sabe nada de Auth.js — recibe `signOutSlot` como children (cada app sigue pasando su propio `SignOutButton`/form).
+- `Badge`, `Button`, `formInputClassName`: reemplazan estilos inline duplicados (ej. el mapa `ESTADO_STYLES` de `tenants/page.tsx`).
+
+**Gotcha real de Tailwind v4 en un monorepo** (el que más costó de esta fase): un `@import "@rifaxapp/ui/theme.css"` cross-package sí resuelve, pero Tailwind v4 **no escanea por default nada que resuelva dentro de `node_modules`** — ni siquiera un symlink de workspace como `@rifaxapp/ui` — así que las clases que usan los tokens nuevos (`bg-brand-600`, etc.) quedaban en el DOM pero sin CSS real generado (confirmado inspeccionando el `.css` compilado directo, no solo mirando la pantalla). Se resolvió agregando `@source "../../../../packages/ui/src";` en el `globals.css` de las 4 apps — verificado de nuevo inspeccionando el CSS compilado antes de seguir (misma disciplina de "no confiar en que compiló sin errores" de la Fase 11).
+
+**`PlatformConfig` en `packages/db-control`** (nuevo, singleton sin id fijo — `getPlatformConfig`/`setPlatformBaseDomain` en `src/platform-config.ts`, `findFirst`-o-`create` perezoso): migración `20260827205306_add_platform_config` corrida con `prisma migrate dev` contra la DB real de control-plane (mismo procedimiento directo que la migración de Fase 1 — a diferencia de `db-tenant`, `db-control` migra su única DB en vivo sin el truco de DB descartable).
+
+**`apps/superadmin/(protected)/configuracion/`** (nuevo, ítem "Dominio" en el sidebar): form (`guardarDominio`, mismo patrón `useActionState` que `createTenant`) que valida formato de dominio y persiste `PlatformConfig.baseDomain`, más un panel de instrucciones server-rendered con el dominio guardado interpolado (o `tudominio.com` de placeholder) que resume los pasos de Fase 7 paso a paso (comprar → `vercel domains add` + wildcard en `rifaxapp-clientes` → subdominio en `rifaxapp-superadmin` → DNS → `TENANT_BASE_DOMAIN` en las 3 apps de tenant → rewrites de Multi Zones). Nota explícita en la UI de que no conecta nada por su cuenta.
+
+**Otro gotcha real, encontrado con Playwright** (no un bug de negocio, pero rompía la interacción real): el botón "Salir" quedó abajo a la izquierda del sidebar nuevo — exactamente donde Next.js pone por default su indicador flotante de Dev Tools (`devIndicators.position: "bottom-left"`), que en dev tapaba los clicks reales (confirmado: Playwright reportaba `<nextjs-portal> intercepts pointer events` esperando en loop). Como es 100% de dev (no existe en producción), se resolvió con una sola línea en los 4 `next.config.ts`: `devIndicators: { position: "bottom-right" }`.
+
+**Selectores de e2e ajustados** (comportamiento real sin cambiar, solo el marcado): el sidebar de `admin` ahora también muestra el rol de la sesión como sublabel, así que `page.getByText("TENANT_ADMIN"/"SEDE_ADMIN", { exact: true })` sin acotar empezó a matchear dos veces (sidebar + contenido de página) — se acotó con `.getByRole("main")` en `e2e/admin-tenant-rbac-flow.spec.ts`, mismo patrón ya usado para un problema idéntico en Fase 4.
+
+**Pruebas**: `apps/superadmin/.../configuracion/actions.test.ts` (5 tests: RBAC, dominio vacío/con protocolo/sin TLD, guardado exitoso en minúsculas) — **121 tests en el repo, todos verdes**. `npm run lint` (5/5, solo los 3 warnings intencionales de siempre), `check-types` (6/6) + `tsc --noEmit` en las 4 apps, `next build` (6/6). Verificación visual real con el Browser tool contra `npm run dev` (no solo "compiló sin errores"): login, sidebar (desktop + mobile con menú hamburguesa), dark mode, y el flujo completo de guardar un dominio en `/configuracion` viendo las instrucciones actualizarse — todo contra un dev server lanzado a mano con `NODE_OPTIONS=--use-system-ca` (el `preview_start` del Browser tool no lo hereda, gotcha de Fase 1). Los 6 e2e del repo corridos uno por uno (gotcha ya documentado de no correrlos todos juntos) — los 6 verdes tras los 2 ajustes de arriba (selector + `devIndicators`).
+
+**Deploy**: push a `main` disparó el auto-deploy de las 4 apps — pendiente confirmar `● Ready` (ver sección de abajo, se completa en esta misma sesión).
+
 ## Próximo paso concreto
 
-1. **Fase 12** (a definir con el usuario): el usuario puede reintentar crear su tenant "mirifa" (o cualquier otro) ahora que el provisioning real funciona en producción.
-2. **Dominio**: bloqueado en que el usuario compre `rifaxapp.com` — instrucciones ya dadas, retomar apenas confirme que lo tiene.
+1. **Fase 13** (a definir con el usuario): el usuario puede ahora ver su tenant "mirifa" con el login/panel rediseñado, y cargar el dominio real en `/configuracion` de superadmin cuando lo compre.
+2. **Dominio**: bloqueado en que el usuario compre `rifaxapp.com` — instrucciones ya dadas (en el chat y ahora en `/configuracion`), retomar apenas confirme que lo tiene.
 3. **Wompi**: bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard — ver Fase 8.
 4. **Resend**: bloqueado en que el usuario cree la cuenta y pase la API key — ver Fase 9.
 5. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
 6. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
-7. **Lección de esta fase, para cualquier bug futuro de "funciona local pero no en Vercel"**: ni "el build no tira error" ni siquiera inspeccionar el `.nft.json` de trace alcanzan como prueba de que algo funciona en producción — hay que probar contra el deploy real. Si el error es opaco, un endpoint de debug temporal con `fs.existsSync`/`readdirSync` sobre el filesystem real del Lambda (borrado apenas se resuelve) da evidencia concreta mucho más rápido que seguir adivinando fixes.
+7. **Lección de Fase 11, para cualquier bug futuro de "funciona local pero no en Vercel"**: ni "el build no tira error" ni siquiera inspeccionar el `.nft.json` de trace alcanzan como prueba de que algo funciona en producción — hay que probar contra el deploy real. Si el error es opaco, un endpoint de debug temporal con `fs.existsSync`/`readdirSync` sobre el filesystem real del Lambda (borrado apenas se resuelve) da evidencia concreta mucho más rápido que seguir adivinando fixes.
+8. Si se agrega contenido nuevo a `packages/ui` que use clases Tailwind con los tokens de `theme.css` (`bg-brand-*`, `bg-sidebar`, etc.), recordar que el `@source` en cada `globals.css` ya cubre todo `packages/ui/src` — no hace falta tocar nada más, pero si se crea un OTRO package compartido con estilos, va a necesitar su propio `@source` (ver gotcha de Fase 12).
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 11 cerrada de punta a punta: bug real de producción que bloqueaba crear cualquier tenant (Prisma no ubicaba su motor de consultas en el runtime de Vercel con el `output` custom de `db-tenant` en este monorepo) diagnosticado con un endpoint de debug temporal (ya borrado) y resuelto con `__internal.engine.binaryPath` en [packages/db-tenant/src/client.ts](packages/db-tenant/src/client.ts). Verificado contra producción real (no solo local): tenant de prueba creado y borrado de punta a punta en `rifaxapp-superadmin`. Se limpiaron las 5 filas de tenant acumuladas en el control-plane real, incluida la "mirifa" original del usuario que había quedado en `ERROR` — la tabla de tenants queda vacía, lista para que el usuario reintente. Type-check, 116 tests unitarios y build de producción (6/6) verdes. Nada quedó a medias sin commitear. Quien retome: siguen los mismos 2 pendientes críticos del usuario (Wompi y Resend con credenciales de prueba) y el dominio sin comprar, ninguno es un olvido.
+Fase 12 cerrada de punta a punta: rediseño visual profesional (login + sidebar) en las 4 apps vía un design system nuevo (`@rifaxapp/ui`, repotenciado desde el scaffold sin usar de create-turbo), más una pantalla de configuración de dominio en superadmin (guarda + instruye, no conecta nada por su cuenta). Dos gotchas reales encontrados y resueltos con evidencia concreta (no adivinando): Tailwind v4 no escaneaba `packages/ui` por vivir resuelto dentro de `node_modules` (fix: `@source`), y el indicador de dev de Next.js tapaba el botón de logout nuevo (fix: `devIndicators.position`). 121 tests unitarios, lint, type-check, build de producción y los 6 e2e del repo — todos verdes, verificado también visualmente con el Browser tool contra un dev server real. Nada quedó a medias sin commitear. Quien retome: siguen los mismos 2 pendientes críticos del usuario (Wompi y Resend con credenciales de prueba) y el dominio sin comprar, ninguno es un olvido.
 
 ## Notas técnicas de arquitectura para quien retome
 

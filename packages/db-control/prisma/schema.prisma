@@ -33,3 +33,13 @@ model SuperAdmin {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+// Fase 12: singleton (una sola fila, sin id fijo hardcodeado — ver
+// getPlatformConfig en src/platform-config.ts) para guardar el dominio base
+// de la plataforma desde la UI de superadmin. Es solo referencia/instrucción
+// hoy — no reconfigura nada en Vercel/DNS por sí mismo.
+model PlatformConfig {
+  id         String   @id @default(cuid())
+  baseDomain String?
+  updatedAt  DateTime @updatedAt
+}

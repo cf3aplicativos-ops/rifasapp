@@ -42,7 +42,10 @@ test.describe("admin: login multi-rol y RBAC por sede", () => {
     await page.getByLabel("Contraseña").fill(tenantAdminPassword);
     await page.getByRole("button", { name: "Ingresar" }).click();
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByText("TENANT_ADMIN", { exact: true })).toBeVisible();
+    // Acotado a "main": desde Fase 12 el sidebar también muestra el rol
+    // (`session.user.rol` como sublabel), así que el texto sin acotar
+    // matchea dos veces (sidebar + contenido del dashboard).
+    await expect(page.getByRole("main").getByText("TENANT_ADMIN", { exact: true })).toBeVisible();
 
     // 3. Crear una Sede.
     await page.goto(`${adminBase}/sedes`);
@@ -72,7 +75,7 @@ test.describe("admin: login multi-rol y RBAC por sede", () => {
 
     // 6. Verificar que la sesión trae el rol y sedeId correctos (no null,
     // a diferencia del TENANT_ADMIN) — la regla de RBAC de ARQUITECTURA.md.
-    await expect(page.getByText("SEDE_ADMIN", { exact: true })).toBeVisible();
+    await expect(page.getByRole("main").getByText("SEDE_ADMIN", { exact: true })).toBeVisible();
     await expect(page.getByText("— (ve todas las sedes)")).not.toBeVisible();
 
     // El SEDE_ADMIN no tiene acceso a /sedes ni /usuarios (TENANT_ADMIN-only).

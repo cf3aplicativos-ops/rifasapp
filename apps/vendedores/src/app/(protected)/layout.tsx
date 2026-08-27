@@ -1,6 +1,11 @@
-import Link from "next/link";
 import { requireSession } from "@/lib/require-session";
+import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
 import { SignOutButton } from "./sign-out-button";
+
+const NAV_ITEMS = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/rifas", label: "Rifas" },
+];
 
 export default async function ProtectedLayout({
   children,
@@ -25,19 +30,13 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-        <nav className="flex items-center gap-4 text-sm font-medium">
-          <span className="font-semibold">Rifaxapp — Vendedores</span>
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/rifas">Rifas</Link>
-        </nav>
-        <div className="flex items-center gap-4 text-sm">
-          <span>{session.user.email}</span>
-          <SignOutButton />
-        </div>
-      </header>
-      <main className="p-6">{children}</main>
-    </div>
+    <SidebarShell
+      brand="Rifaxapp — Vendedores"
+      navItems={NAV_ITEMS}
+      user={{ label: session.user.email }}
+      signOutSlot={<SignOutButton />}
+    >
+      {children}
+    </SidebarShell>
   );
 }

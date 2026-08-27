@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@import "@rifaxapp/ui/theme.css";
+/* Tailwind v4 no escanea por default lo que resuelve dentro de node_modules
+   (ni siquiera un symlink de workspace, como @rifaxapp/ui) — sin esto, las
+   clases que usan los tokens de theme.css (bg-brand-*, bg-sidebar, etc.)
+   nunca generan CSS real aunque el className esté en el DOM. */
+@source "../../../../packages/ui/src";
 
 :root {
   --background: #ffffff;

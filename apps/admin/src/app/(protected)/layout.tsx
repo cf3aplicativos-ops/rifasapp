@@ -1,6 +1,13 @@
-import Link from "next/link";
 import { requireSession } from "@/lib/require-session";
+import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
 import { SignOutButton } from "./sign-out-button";
+
+const TENANT_ADMIN_NAV_ITEMS = [
+  { href: "/rifas", label: "Rifas" },
+  { href: "/reportes", label: "Reportes" },
+  { href: "/sedes", label: "Sedes" },
+  { href: "/usuarios", label: "Usuarios" },
+];
 
 export default async function ProtectedLayout({
   children,
@@ -9,30 +16,19 @@ export default async function ProtectedLayout({
 }) {
   const session = await requireSession();
   const isTenantAdmin = session.user.rol === "TENANT_ADMIN";
+  const navItems = [
+    { href: "/dashboard", label: "Dashboard" },
+    ...(isTenantAdmin ? TENANT_ADMIN_NAV_ITEMS : []),
+  ];
 
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-        <nav className="flex items-center gap-4 text-sm font-medium">
-          <span className="font-semibold">Rifaxapp</span>
-          <Link href="/dashboard">Dashboard</Link>
-          {isTenantAdmin && (
-            <>
-              <Link href="/rifas">Rifas</Link>
-              <Link href="/reportes">Reportes</Link>
-              <Link href="/sedes">Sedes</Link>
-              <Link href="/usuarios">Usuarios</Link>
-            </>
-          )}
-        </nav>
-        <div className="flex items-center gap-4 text-sm">
-          <span>
-            {session.user.email} ({session.user.rol})
-          </span>
-          <SignOutButton />
-        </div>
-      </header>
-      <main className="p-6">{children}</main>
-    </div>
+    <SidebarShell
+      brand="Rifaxapp"
+      navItems={navItems}
+      user={{ label: session.user.email, sublabel: session.user.rol }}
+      signOutSlot={<SignOutButton />}
+    >
+      {children}
+    </SidebarShell>
   );
 }

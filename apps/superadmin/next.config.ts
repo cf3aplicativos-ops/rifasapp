@@ -2,6 +2,12 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Fase 12: el sidebar nuevo (packages/ui) pone el botón de logout abajo a
+  // la izquierda — justo donde vive por default el indicador de Next.js Dev
+  // Tools ("bottom-left"), que en dev tapaba los clicks reales (confirmado
+  // con Playwright: "<nextjs-portal> intercepts pointer events"). Solo
+  // afecta dev — en producción ese indicador no existe.
+  devIndicators: { position: "bottom-right" },
   // @prisma/client (usado por db-control) ya viene externalizado por
   // defecto por Next (ver serverExternalPackages.md). El cliente de
   // db-tenant se genera en una salida propia (packages/db-tenant/src/generated/client,

@@ -1,5 +1,11 @@
 import { requireSuperAdmin } from "@/lib/require-superadmin";
 import { signOut } from "@/auth";
+import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
+
+const NAV_ITEMS = [
+  { href: "/tenants", label: "Tenants" },
+  { href: "/configuracion", label: "Dominio" },
+];
 
 export default async function ProtectedLayout({
   children,
@@ -9,24 +15,24 @@ export default async function ProtectedLayout({
   const session = await requireSuperAdmin();
 
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-        <span className="font-semibold">Rifaxapp — Superadmin</span>
-        <div className="flex items-center gap-4 text-sm">
-          <span>{session.user?.email}</span>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/login" });
-            }}
-          >
-            <button type="submit" className="underline">
-              Salir
-            </button>
-          </form>
-        </div>
-      </header>
-      <main className="p-6">{children}</main>
-    </div>
+    <SidebarShell
+      brand="Rifaxapp"
+      navItems={NAV_ITEMS}
+      user={{ label: session.user?.email ?? "", sublabel: "Superadmin" }}
+      signOutSlot={
+        <form
+          action={async () => {
+            "use server";
+            await signOut({ redirectTo: "/login" });
+          }}
+        >
+          <button type="submit" className="underline">
+            Salir
+          </button>
+        </form>
+      }
+    >
+      {children}
+    </SidebarShell>
   );
 }

@@ -1,20 +1,24 @@
-"use client";
+import type { ButtonHTMLAttributes } from "react";
 
-import { ReactNode } from "react";
+export type ButtonVariant = "primary" | "secondary";
 
-interface ButtonProps {
-  children: ReactNode;
-  className?: string;
-  appName: string;
-}
+const VARIANT_CLASSES: Record<ButtonVariant, string> = {
+  primary: "bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50",
+  secondary:
+    "border border-gray-300 text-gray-900 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900",
+};
 
-export const Button = ({ children, className, appName }: ButtonProps) => {
+/** Botón presentacional compartido (Fase 12) — sin lógica propia, cada form
+ * sigue pasando `disabled={isPending}`/`type="submit"` como ya hacía. */
+export function Button({
+  variant = "primary",
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
   return (
     <button
-      className={className}
-      onClick={() => alert(`Hello from your ${appName} app!`)}
-    >
-      {children}
-    </button>
+      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${VARIANT_CLASSES[variant]} ${className ?? ""}`}
+      {...props}
+    />
   );
-};
+}

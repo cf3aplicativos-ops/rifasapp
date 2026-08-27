@@ -1,12 +1,13 @@
 import { getControlPrismaClient } from "@rifaxapp/db-control";
+import { Badge, type BadgeTone } from "@rifaxapp/ui/badge";
 import { CreateTenantForm } from "./create-tenant-form";
 import { DeleteTenantButton } from "./delete-tenant-button";
 
-const ESTADO_STYLES: Record<string, string> = {
-  ACTIVO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300",
-  PROVISIONANDO: "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300",
-  SUSPENDIDO: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-  ERROR: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
+const ESTADO_TONE: Record<string, BadgeTone> = {
+  ACTIVO: "green",
+  PROVISIONANDO: "yellow",
+  SUSPENDIDO: "gray",
+  ERROR: "red",
 };
 
 export default async function TenantsPage() {
@@ -35,11 +36,7 @@ export default async function TenantsPage() {
               <td className="py-2 font-mono">{tenant.slug}</td>
               <td className="py-2">{tenant.nombre}</td>
               <td className="py-2">
-                <span
-                  className={`rounded px-2 py-0.5 text-xs font-medium ${ESTADO_STYLES[tenant.estado] ?? ""}`}
-                >
-                  {tenant.estado}
-                </span>
+                <Badge tone={ESTADO_TONE[tenant.estado] ?? "gray"}>{tenant.estado}</Badge>
               </td>
               <td className="py-2 text-gray-500">
                 {tenant.createdAt.toLocaleDateString("es")}
