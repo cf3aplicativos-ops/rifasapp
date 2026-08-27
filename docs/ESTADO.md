@@ -304,7 +304,7 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Pruebas**: `npm run lint` (5/5, solo los 3 warnings intencionales), `npm run check-types` (6/6) + `npx tsc --noEmit` en las 4 apps, `npx vitest run` (116 tests, sin cambios de código de negocio), `npm run build --force` (6/6, todas las apps). Se re-corrieron los 6 e2e del repo contra Neon real (con `NODE_OPTIONS=--use-system-ca` y `.next` limpio) para confirmar que el refactor de los dos forms no cambió el comportamiento — los 6 pasaron a la primera, sin necesitar reintentos esta vez.
 
-**Deploy**: push a `main` disparó el auto-deploy de las 4 apps — confirmar `● Ready` antes de cerrar esta sesión.
+**Deploy**: push a `main` (`580b848`) disparó el auto-deploy de las 4 apps; confirmado `● Ready` en Production para `rifaxapp-admin`, `rifaxapp-clientes`, `rifaxapp-vendedores` y `rifaxapp-superadmin`.
 
 ## Próximo paso concreto
 
