@@ -218,6 +218,8 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Pruebas**: `packages/db-tenant/src/expirar-ventas-vencidas.test.ts` (4 tests: no-op sin vencidas, cálculo correcto del límite de tiempo, marca VENCIDA + libera boletos, usa el default de 48hs) — 72 tests en el repo, todos verdes. No se agregó un e2e nuevo para esto: simular "48hs después" de forma realista en Playwright hubiera requerido controlar `RESERVA_TTL_HORAS` del dev server desde el test (reinicio de servidor) por poco valor extra sobre la verificación real ya hecha con el script descartable — decisión pragmática, documentada acá por si alguien quiere agregarlo después.
 
+**Deploy**: push a `main` (`5ea19b4`) disparó el auto-deploy de las 4 apps, confirmado `● Ready` en Production para las 4.
+
 ## Próximo paso concreto
 
 1. **Fase 7** (a definir con el usuario): `Pago` con pasarela real (Stripe/Wompi/PayU), reportes/dashboard de ventas por rifa/sede/vendedor, notificaciones (email/WhatsApp) al confirmar un pago, o retomar el dominio.
