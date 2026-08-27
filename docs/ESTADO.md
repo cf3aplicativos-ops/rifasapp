@@ -231,6 +231,8 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Pruebas**: no se agregó un test unitario dedicado (la página no tiene server actions, es puro fetch+render de Server Component, mismo criterio que el resto de `page.tsx` del repo). Se extendió **`e2e/rifa-flujo-completo.spec.ts`** (ya cubre 1 venta de `VENDEDOR` de $10 + 1 autocompra de `CLIENTE` de $10 confirmada) con un paso nuevo antes del cleanup: visita `/reportes` y confirma `$20.00` de total, `$10.00` en la fila del vendedor y `$10.00` en la fila de "Autocompra" — verificado real contra Neon, verde. 72 tests unitarios + los 5 e2e siguen todos verdes.
 
+**Deploy**: push a `main` (`fc3d626`) disparó el auto-deploy; confirmado `● Ready` en Production para `rifaxapp-admin` (única app tocada esta fase).
+
 ## Próximo paso concreto
 
 1. **Fase 8** (a definir con el usuario): `Pago` con pasarela real (Stripe/Wompi/PayU), notificaciones (email/WhatsApp) al confirmar un pago, o Multi Zones apenas el usuario tenga el dominio comprado (ver Fase 7 arriba para los pasos exactos).
