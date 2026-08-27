@@ -4,11 +4,11 @@
 
 ## Última actualización
 
-**2026-08-26** — Fase 4 completa: `apps/vendedores` (solo rol VENDEDOR) + `apps/clientes` (con registro público de CLIENTE), ambas reusando `packages/auth`.
+**2026-08-27** — Fase 5 completa: modelo de negocio `Rifa`/`Boleto`/`Venta` en `packages/db-tenant`, con pantallas reales en `admin`/`vendedores`/`clientes`.
 
 ## Fase actual
 
-**Fase 4 — apps/vendedores + apps/clientes** cerrada. Fases 0-3 siguen cerradas (dominio pospuesto a pedido del usuario). Próxima: Fase 5 (a definir con el usuario — probablemente diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` cuando haya reglas de negocio, ya que las 4 apps y el login multi-rol están completos).
+**Fase 5 — Rifa/Boleto/Venta** cerrada. Fases 0-4 siguen cerradas (dominio pospuesto a pedido del usuario). Próxima: Fase 6, a definir con el usuario (candidatos: `Pago` con pasarela real, expiración automática de reservas `PENDIENTE`, reportes/dashboard de ventas, o directamente retomar el dominio `rifaxapp.com` para Multi Zones).
 
 ## Qué se completó en esta sesión
 
@@ -176,15 +176,44 @@ Pasos hechos para dejarlas realmente operativas:
 2. Como Vercel no reinyecta env vars nuevas en un deployment ya construido, se corrió `vercel redeploy <url-del-ultimo-deploy>` en cada proyecto para forzar un build con las vars ya presentes. La CLI tiró `Error: fetch failed` al esperar el resultado en ambos casos (el mismo problema de red/TLS visto antes con `vercel redeploy`), pero el build se había disparado igual — se confirmó `● Ready` con `vercel inspect <nueva-url>` en vez de confiar en la salida del comando `redeploy`.
 3. Confirmado: `rifaxapp-vendedores` (`dpl_H7qdMeRdnJDhaqgbeChE4wjJVTK4`) y `rifaxapp-clientes` (`dpl_7eWBnFVVHXBcYjDDtGvRGpzbJQNs`) ambos `● Ready` en Production con las env vars nuevas aplicadas.
 
+## Fase 5 — Rifa / Boleto / Venta (2026-08-27)
+
+**Reglas de negocio confirmadas con el usuario**: boletos con número fijo dentro de un rango, elegible (no asignado al azar); venta por ambos canales (`VENDEDOR` presencial en `apps/vendedores`, `CLIENTE` autocompra en `apps/clientes`); pago manual/efectivo sin pasarela (se registra como dato); estados de Rifa `BORRADOR → ACTIVA → CERRADA` + `CANCELADA`.
+
+**Modelo de datos** (`packages/db-tenant/prisma/schema.prisma`): `Rifa` (precioBoleto, cantidadBoletos, estado, boletoGanadorId), `Boleto` (rifaId+numero único, estado `DISPONIBLE|RESERVADO|VENDIDO`), `Venta` (rifaId, vendedorId **o** clienteId — nunca ambos, compradorNombre/Telefono para ventas presenciales sin cuenta, metodoPago, estado `PENDIENTE|PAGADA|ANULADA`). Reglas de negocio en las server actions, no en constraints de DB (mismo criterio pragmático de fases anteriores):
+- Boletos se generan (bulk `createMany`, números `1..cantidadBoletos`) recién en la transición `BORRADOR → ACTIVA` — antes de eso se puede editar cantidad/precio libremente.
+- Venta de `VENDEDOR`: siempre `PAGADA` de una (cobro en el momento) → boletos van directo a `VENDIDO`.
+- Venta de `CLIENTE`: queda `PENDIENTE` → boletos quedan `RESERVADO`; el `TENANT_ADMIN` confirma el pago a mano desde `apps/admin` (no hay pasarela) — `confirmarPagoVenta` mueve a `PAGADA`/`VENDIDO`, `anularVenta` libera los boletos de vuelta a `DISPONIBLE`.
+- Condición de carrera en la selección de boletos: `updateMany({ where: { id: {in}, estado: DISPONIBLE }, ... })` dentro de una transacción interactiva (`prisma.$transaction(async (tx) => ...)`), verificando `count === boletos pedidos` y tirando (rollback) si no — mensaje "algunos números ya no están disponibles, refrescá la página".
+
+**DDL de provisioning** (`packages/db-tenant/src/schema-sql.ts`): se generó la migración real (`prisma migrate dev`) contra una DB descartable en el proyecto Neon de `TENANTS_HOST_*` (se crea con un script temporal, se corre la migración, se borra la DB al final — no se toca ninguna DB de tenant real) y se **agregó** el DDL nuevo al final del template string existente (nunca se reemplaza el de `Sede`/`Usuario` — los tenants ya provisionados no vuelven a correr esto, pero los nuevos necesitan el historial completo). Importante para quien retome: no hay mecanismo de migración para tenants YA provisionados con el schema viejo — no hace falta todavía porque no hay tenants reales en producción, solo de prueba.
+
+**Reparto por app** (mismo patrón RBAC de `assertRole` + `getTenantPrismaClient` establecido en Fase 3):
+- `apps/admin` (`TENANT_ADMIN`-only, como `Sede`/`Usuario`): `/rifas` crea/activa/cancela/cierra (elige boleto ganador entre los `VENDIDO`); `/rifas/[id]/ventas` confirma/anula pagos pendientes.
+- `apps/vendedores` (`VENDEDOR`): `/rifas` lista activas → `/rifas/[id]` grilla de boletos (click para seleccionar) + form de venta presencial (nombre/teléfono/método de pago).
+- `apps/clientes` (`CLIENTE`): misma grilla en `/rifas/[id]` con acción `reservarBoletos` (usa la sesión, sin pedir datos de contacto) + `/mis-boletos` con el estado de sus reservas.
+
+**Bug real encontrado y corregido — colisión de cookies de sesión entre apps**: `packages/auth`'s `tenantAuthConfig` era un objeto estático compartido por las 3 apps de tenant, y Auth.js usa el mismo nombre de cookie (`authjs.session-token`) por default. Las cookies del navegador **no se scopean por puerto** — solo por host — así que en dev (`{slug}.localhost:3001/3002/3003`) y en producción (Multi Zones sirve `admin`/`vendedores`/`clientes` bajo el MISMO host `{tenant}.rifaxapp.com`, ver `docs/ARQUITECTURA.md`) loguearse en una app pisa la cookie de sesión de las otras. Como cada app tiene su propio `AUTH_SECRET`, la sesión "pisada" queda indescifrable — se ve como sesión inválida (redirect silencioso a `/login`), no como un error obvio. Se encontró con el e2e de Fase 5 (el primero que va y vuelve entre `admin`→`vendedores`→`clientes`→`admin` en el mismo browser context). **Fix**: `tenantAuthConfig` pasó a ser `createTenantAuthConfig(appName)`, que arma `cookies.sessionToken/callbackUrl/csrfToken` con el nombre de la cookie sufijado por `appName` (`authjs.session-token.admin`, `.vendedores`, `.clientes`). Cada app llama `NextAuth(createTenantAuthConfig("admin"))` etc. en su `src/auth.ts`. Este bug **habría aparecido en producción real** apenas un mismo usuario tuviera pestañas abiertas de dos apps de tenant a la vez — vale la pena que quien retome lo tenga presente si en el futuro se toca `packages/auth` de nuevo.
+
+**Otro fix real, en `packages/auth`**: `session.user.id` estaba tipado como requerido pero nunca se copiaba desde el JWT (el `session` callback custom de `tenantAuthConfig` sobreescribe el comportamiento default de Auth.js sin copiar `token.sub`). Se necesitaba para `creadoPorId`/`vendedorId`/`clienteId` en las nuevas acciones — se agregó `if (token.sub) session.user.id = token.sub;` en el callback.
+
+**Gotcha de entorno (nuevo, Windows + Avast)**: corriendo `npm run dev` en esta sesión, todo login fallaba con `CallbackRouteError` sin detalle útil en la consola — el error real (visible solo agregando un `try/catch` temporal en `authorize`) era `UNABLE_TO_VERIFY_LEAF_SIGNATURE` en la conexión WebSocket de `@neondatabase/serverless` (`wss://...neon.tech/v2`) hacia Neon. `NODE_EXTRA_CA_CERTS` (ya seteado en el perfil de esta máquina) **no alcanza** para las conexiones WebSocket del adapter de Neon — hace falta además `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`. Sin este flag, CUALQUIER server action que toque una DB de tenant o el control-plane falla en dev en esta máquina. Documentado acá porque no estaba escrito en ningún lado todavía y costó bastante diagnosticar.
+
+**Pruebas**:
+- Vitest: `rifas/actions.test.ts` en `admin` (17 tests: crearRifa, activarRifa, cancelarRifa, cerrarRifa, confirmarPagoVenta, anularVenta), `vendedores` (6 tests: registrarVenta) y `clientes` (5 tests: reservarBoletos) — 28 tests nuevos, 68 en total en el repo, todos verdes.
+- Playwright: `e2e/rifa-flujo-completo.spec.ts` (nuevo, real contra Neon) — un solo spec que cruza las 3 apps: `superadmin` crea tenant → `TENANT_ADMIN` en `admin` crea sede + invita `VENDEDOR` + crea y activa una rifa de 5 boletos → `VENDEDOR` vende el boleto #1 presencial (`PAGADA`) → un `CLIENTE` nuevo se registra y reserva el boleto #2 (`PENDIENTE`) → `TENANT_ADMIN` confirma ese pago → `TENANT_ADMIN` cierra la rifa eligiendo el boleto #1 como ganador → cleanup. Necesita `test.setTimeout(120_000)` explícito (el default de 30s no alcanza para un flujo tan largo). Se corrieron también los 4 specs preexistentes (`superadmin-tenant-flow`, `admin-tenant-rbac-flow`, `vendedores-login-flow`, `clientes-registro-flow`) uno por uno para confirmar que el fix de cookies no rompió nada — los 5 specs verdes. **Ojo**: correr todos los projects de Playwright a la vez (`--project=superadmin --project=admin ...`) contra los mismos 4 dev servers compartidos satura las conexiones y todo falla con timeouts — correr un spec a la vez con un solo `--project`, como indica el comentario de cada archivo.
+- `next build` de producción de las 4 apps vía Turbo, verde.
+
 ## Próximo paso concreto
 
-1. **Fase 5** (a definir con el usuario): las 4 apps y el login multi-rol ya están completos — el paso natural es diseñar `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago` en `packages/db-tenant` cuando el usuario defina las reglas de negocio (precios, métodos de pago, estados de una rifa, cómo se vende un boleto), y recién ahí construir las pantallas reales en cada app.
+1. **Fase 6** (a definir con el usuario): candidatos son `Pago` con pasarela real (Stripe/Wompi/PayU), expiración automática de reservas `PENDIENTE` (hoy quedan colgadas hasta que un TENANT_ADMIN las confirme o anule a mano), reportes/dashboard de ventas por rifa/sede/vendedor, o notificaciones (email/WhatsApp) al confirmar un pago.
 2. Dominio y wildcard `*.rifaxapp.com` / Multi Zones siguen pospuestos a pedido del usuario — cuando exista, solo hace falta setear `TENANT_BASE_DOMAIN=rifaxapp.com` en cada app de tenant, la lógica de resolución ya está lista para eso.
 3. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
+4. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket arriba) — si no, todo login falla.
 
-## Cierre de sesión — 2026-08-26
+## Cierre de sesión — 2026-08-27
 
-Fase 4 cerrada de punta a punta: código commiteado y pusheado a `main` (`2f9be29`), `rifaxapp-vendedores` y `rifaxapp-clientes` desplegadas en Vercel con sus env vars y confirmadas `● Ready`. Las 4 apps del monorepo (superadmin, admin, vendedores, clientes) están ahora completas con login multi-rol funcionando en producción. Nada quedó a medias sin commitear. Quien retome: el próximo paso es Fase 5, a definir con el usuario (diseño del modelo de negocio `Rifa`/`Boleto`/`Venta`/`Cliente`/`Pago`) — lee este archivo completo antes de tocar nada.
+Fase 5 cerrada de punta a punta: modelo `Rifa`/`Boleto`/`Venta` diseñado e implementado en las 3 apps de tenant, 28 tests unitarios nuevos + 1 e2e nuevo (todos verdes, junto con los 4 specs preexistentes), un bug real de colisión de cookies de sesión encontrado y corregido en `packages/auth` (habría afectado producción). Nada quedó a medias sin commitear. Quien retome: el próximo paso es Fase 6, a definir con el usuario — lee este archivo completo antes de tocar nada, y no te olvides del `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`.
 
 ## Notas técnicas de arquitectura para quien retome
 

@@ -1,4 +1,4 @@
 import NextAuth from "next-auth";
-import { tenantAuthConfig } from "@rifaxapp/auth";
+import { createTenantAuthConfig } from "@rifaxapp/auth";
 
-export const { handlers, auth, signIn, signOut } = NextAuth(tenantAuthConfig);
+export const { handlers, auth, signIn, signOut } = NextAuth(createTenantAuthConfig("vendedores"));

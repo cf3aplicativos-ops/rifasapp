@@ -5,10 +5,10 @@ import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import "./types";
 
 /**
- * Config de Auth.js compartida por las apps de tenant (admin, y más
- * adelante vendedores/clientes). A diferencia de una config "perezosa" que
- * re-resuelve el tenant por Host en cada invocación, este `authorize` recibe
- * el `tenantId` como un credential más — quien llama a `signIn` (ver
+ * Config de Auth.js compartida por las apps de tenant (admin, vendedores,
+ * clientes). A diferencia de una config "perezosa" que re-resuelve el
+ * tenant por Host en cada invocación, este `authorize` recibe el
+ * `tenantId` como un credential más — quien llama a `signIn` (ver
  * apps/admin/src/app/login/actions.ts) lo resuelve una sola vez con
  * `headers()`/`resolveTenantFromHost` y lo pasa explícito.
  *
@@ -22,11 +22,30 @@ import "./types";
  * `next/headers`, de forma inconsistente entre invocaciones. Resolver el
  * tenant una sola vez del lado del caller y pasarlo como dato explícito
  * evita depender de esa reconstrucción.
+ *
+ * `createTenantAuthConfig(appName)` en vez de un objeto estático único: en
+ * producción `admin`/`vendedores`/`clientes` sirven bajo el MISMO host
+ * `{tenant}.rifaxapp.com` (Multi Zones, ver docs/ARQUITECTURA.md) — las
+ * cookies de sesión NO se scopean por puerto, así que si las 3 apps usaran
+ * el nombre de cookie default de Auth.js (`authjs.session-token`), loguearse
+ * en una pisaría la cookie de las otras (y como cada app tiene su propio
+ * `AUTH_SECRET`, la sesión de la app "pisada" queda indescifrable — se ve
+ * como sesión inválida, no como un error obvio). `appName` entra en el
+ * nombre de la cookie para que cada app tenga la suya. Se descubrió esto en
+ * Fase 5, con un e2e que iba y volvía entre admin/vendedores/clientes en el
+ * mismo browser context (mismo hostname `*.localhost`, distinto puerto —
+ * los puertos tienen el mismo problema de scoping que Multi Zones en prod).
  */
-export const tenantAuthConfig: NextAuthConfig = {
+export function createTenantAuthConfig(appName: string): NextAuthConfig {
+  return {
   trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
+  cookies: {
+    sessionToken: { name: `authjs.session-token.${appName}` },
+    callbackUrl: { name: `authjs.callback-url.${appName}` },
+    csrfToken: { name: `authjs.csrf-token.${appName}` },
+  },
   providers: [
     Credentials({
       credentials: {
@@ -78,10 +97,15 @@ export const tenantAuthConfig: NextAuthConfig = {
       return token;
     },
     session({ session, token }) {
+      // `token.sub` es el id del Usuario (Auth.js lo setea automáticamente a
+      // partir del `id` que devuelve `authorize` en el sign-in) — no viaja
+      // solo, hay que copiarlo a mano como el resto de los campos custom.
+      if (token.sub) session.user.id = token.sub;
       if (token.tenantId) session.user.tenantId = token.tenantId;
       session.user.sedeId = token.sedeId ?? null;
       if (token.rol) session.user.rol = token.rol;
       return session;
     },
   },
-};
+  };
+}

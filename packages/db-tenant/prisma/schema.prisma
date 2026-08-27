@@ -19,6 +19,31 @@ enum UsuarioRol {
   CLIENTE
 }
 
+enum RifaEstado {
+  BORRADOR
+  ACTIVA
+  CERRADA
+  CANCELADA
+}
+
+enum BoletoEstado {
+  DISPONIBLE
+  RESERVADO
+  VENDIDO
+}
+
+enum VentaEstado {
+  PENDIENTE
+  PAGADA
+  ANULADA
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  OTRO
+}
+
 model Sede {
   id        String    @id @default(uuid())
   nombre    String
@@ -28,13 +53,66 @@ model Sede {
 }
 
 model Usuario {
-  id           String     @id @default(uuid())
-  email        String     @unique
-  passwordHash String
-  nombre       String?
-  rol          UsuarioRol
-  sedeId       String?
-  sede         Sede?      @relation(fields: [sedeId], references: [id])
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id                 String     @id @default(uuid())
+  email              String     @unique
+  passwordHash       String
+  nombre             String?
+  rol                UsuarioRol
+  sedeId             String?
+  sede               Sede?      @relation(fields: [sedeId], references: [id])
+  rifasCreadas       Rifa[]     @relation("RifaCreador")
+  ventasComoVendedor Venta[]    @relation("VentaVendedor")
+  ventasComoCliente  Venta[]    @relation("VentaCliente")
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model Rifa {
+  id              String     @id @default(uuid())
+  nombre          String
+  descripcion     String?
+  precioBoleto    Decimal    @db.Decimal(12, 2)
+  cantidadBoletos Int
+  estado          RifaEstado @default(BORRADOR)
+  fechaSorteo     DateTime?
+  boletoGanadorId String?    @unique
+  boletoGanador   Boleto?    @relation("RifaGanador", fields: [boletoGanadorId], references: [id])
+  creadoPorId     String
+  creadoPor       Usuario    @relation("RifaCreador", fields: [creadoPorId], references: [id])
+  boletos         Boleto[]   @relation("RifaBoletos")
+  ventas          Venta[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Boleto {
+  id           String       @id @default(uuid())
+  rifaId       String
+  rifa         Rifa         @relation("RifaBoletos", fields: [rifaId], references: [id])
+  numero       Int
+  estado       BoletoEstado @default(DISPONIBLE)
+  ventaId      String?
+  venta        Venta?       @relation(fields: [ventaId], references: [id])
+  rifaGanadora Rifa?        @relation("RifaGanador")
+  createdAt    DateTime     @default(now())
+
+  @@unique([rifaId, numero])
+}
+
+model Venta {
+  id                String      @id @default(uuid())
+  rifaId            String
+  rifa              Rifa        @relation(fields: [rifaId], references: [id])
+  vendedorId        String?
+  vendedor          Usuario?    @relation("VentaVendedor", fields: [vendedorId], references: [id])
+  clienteId         String?
+  cliente           Usuario?    @relation("VentaCliente", fields: [clienteId], references: [id])
+  compradorNombre   String?
+  compradorTelefono String?
+  montoTotal        Decimal     @db.Decimal(12, 2)
+  metodoPago        MetodoPago
+  estado            VentaEstado @default(PENDIENTE)
+  boletos           Boleto[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 }
