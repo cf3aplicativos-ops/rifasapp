@@ -43,6 +43,7 @@ enum MetodoPago {
   EFECTIVO
   TRANSFERENCIA
   OTRO
+  WOMPI
 }
 
 model Sede {

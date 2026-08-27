@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { reservarBoletos } from "../actions";
+import { reservarBoletos, iniciarPagoWompi } from "../actions";
 
 type BoletoInfo = { id: string; numero: number; estado: string };
 
 export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: BoletoInfo[] }) {
   const [state, formAction, isPending] = useActionState(reservarBoletos, undefined);
+  const [wompiState, wompiFormAction, isWompiPending] = useActionState(iniciarPagoWompi, undefined);
   const [seleccionados, setSeleccionados] = useState<number[]>([]);
   const [wasPending, setWasPending] = useState(false);
 
@@ -24,13 +25,17 @@ export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: Bole
     );
   }
 
-  return (
-    <form action={formAction} className="space-y-4">
+  const hiddenInputs = (
+    <>
       <input type="hidden" name="rifaId" value={rifaId} />
       {seleccionados.map((n) => (
         <input key={n} type="hidden" name="numeros" value={n} />
       ))}
+    </>
+  );
 
+  return (
+    <div className="space-y-4">
       <div className="grid grid-cols-8 gap-1 sm:grid-cols-12">
         {boletos.map((b) => {
           const isSelected = seleccionados.includes(b.numero);
@@ -60,35 +65,52 @@ export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: Bole
         Seleccionados: {seleccionados.length > 0 ? seleccionados.slice().sort((a, b) => a - b).join(", ") : "ninguno"}
       </p>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <label htmlFor="metodoPago" className="text-sm font-medium">
-            Cómo vas a pagar
-          </label>
-          <select
-            id="metodoPago"
-            name="metodoPago"
-            required
-            defaultValue="TRANSFERENCIA"
-            className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
-          >
-            <option value="TRANSFERENCIA">Transferencia</option>
-            <option value="EFECTIVO">Efectivo</option>
-            <option value="OTRO">Otro</option>
-          </select>
-        </div>
+      <form action={wompiFormAction} className="space-y-2 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+        {hiddenInputs}
+        <p className="text-sm font-medium">Pagar online (tarjeta, PSE, Nequi)</p>
         <button
           type="submit"
-          disabled={isPending || seleccionados.length === 0}
+          disabled={isWompiPending || seleccionados.length === 0}
           className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900"
         >
-          {isPending ? "Reservando…" : "Reservar boletos"}
+          {isWompiPending ? "Redirigiendo…" : "Pagar ahora con Wompi"}
         </button>
-      </div>
-      <p className="text-xs text-gray-500">
-        No hay cobro automático: tu reserva queda pendiente hasta que confirmemos el pago.
-      </p>
-      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
-    </form>
+        {wompiState?.error && <p className="text-sm text-red-600">{wompiState.error}</p>}
+      </form>
+
+      <form action={formAction} className="space-y-2">
+        <p className="text-sm font-medium">O reservá y pagá por tu cuenta</p>
+        {hiddenInputs}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <label htmlFor="metodoPago" className="text-sm font-medium">
+              Cómo vas a pagar
+            </label>
+            <select
+              id="metodoPago"
+              name="metodoPago"
+              required
+              defaultValue="TRANSFERENCIA"
+              className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            >
+              <option value="TRANSFERENCIA">Transferencia</option>
+              <option value="EFECTIVO">Efectivo</option>
+              <option value="OTRO">Otro</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            disabled={isPending || seleccionados.length === 0}
+            className="rounded border border-gray-900 px-4 py-2 disabled:opacity-50 dark:border-gray-100"
+          >
+            {isPending ? "Reservando…" : "Reservar boletos"}
+          </button>
+        </div>
+        <p className="text-xs text-gray-500">
+          No hay cobro automático: tu reserva queda pendiente hasta que confirmemos el pago.
+        </p>
+        {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
+      </form>
+    </div>
   );
 }

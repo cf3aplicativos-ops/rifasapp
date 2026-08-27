@@ -15,6 +15,7 @@
 // - 20260827012343_init (Sede, Usuario)
 // - 20260827110242_add_rifa_boleto_venta (Rifa, Boleto, Venta)
 // - 20260827124558_add_venta_vencida (VentaEstado.VENCIDA)
+// - 20260827153120_add_metodo_pago_wompi (MetodoPago.WOMPI)
 export const TENANT_SCHEMA_SQL = `
 -- CreateEnum
 CREATE TYPE "UsuarioRol" AS ENUM ('TENANT_ADMIN', 'SEDE_ADMIN', 'VENDEDOR', 'CLIENTE');
@@ -136,4 +137,7 @@ ALTER TABLE "Venta" ADD CONSTRAINT "Venta_clienteId_fkey" FOREIGN KEY ("clienteI
 
 -- AlterEnum
 ALTER TYPE "VentaEstado" ADD VALUE 'VENCIDA';
+
+-- AlterEnum
+ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI';
 `;

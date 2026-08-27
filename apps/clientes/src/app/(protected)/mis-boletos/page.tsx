@@ -9,7 +9,12 @@ const ESTADO_LABEL: Record<string, string> = {
   VENCIDA: "Vencida (nadie confirmó el pago a tiempo)",
 };
 
-export default async function MisBoletosPage() {
+export default async function MisBoletosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ wompi?: string }>;
+}) {
+  const { wompi } = await searchParams;
   const session = await requireSession();
   const prisma = await getTenantPrismaClient(session.user.tenantId);
   await expirarVentasVencidas(
@@ -26,6 +31,12 @@ export default async function MisBoletosPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Mis boletos</h1>
+      {wompi === "1" && (
+        <p className="rounded border border-gray-300 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900">
+          Estamos confirmando tu pago con Wompi, puede tardar unos segundos — actualizá esta página si todavía
+          la ves como &quot;Pendiente&quot;.
+        </p>
+      )}
       <ul className="space-y-2">
         {ventas.map((venta) => (
           <li key={venta.id} className="rounded border border-gray-200 p-4 dark:border-gray-800">

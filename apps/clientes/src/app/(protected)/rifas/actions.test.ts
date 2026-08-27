@@ -3,35 +3,35 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const authMock = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => authMock() }));
 
-const rifaFindUnique = vi.fn();
-const boletoFindMany = vi.fn();
-const ventaCreate = vi.fn();
-const boletoUpdateMany = vi.fn();
-
-const getTenantPrismaClient = vi.fn().mockResolvedValue({
-  rifa: { findUnique: rifaFindUnique },
-  boleto: { findMany: boletoFindMany, updateMany: boletoUpdateMany },
-  venta: { create: ventaCreate },
-  $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-    fn({
-      venta: { create: ventaCreate },
-      boleto: { updateMany: boletoUpdateMany },
-    }),
-});
+const getTenantPrismaClient = vi.fn().mockResolvedValue({ __fake: "prisma" });
 vi.mock("@rifaxapp/tenant-resolver", () => ({
   getTenantPrismaClient: (tenantId: string) => getTenantPrismaClient(tenantId),
 }));
 
+class VentaLifecycleError extends Error {}
+const reservarBoletosParaVenta = vi.fn();
 vi.mock("@rifaxapp/db-tenant", () => ({
-  RifaEstado: { BORRADOR: "BORRADOR", ACTIVA: "ACTIVA", CERRADA: "CERRADA", CANCELADA: "CANCELADA" },
-  BoletoEstado: { DISPONIBLE: "DISPONIBLE", RESERVADO: "RESERVADO", VENDIDO: "VENDIDO" },
-  VentaEstado: { PENDIENTE: "PENDIENTE", PAGADA: "PAGADA", ANULADA: "ANULADA" },
-  MetodoPago: { EFECTIVO: "EFECTIVO", TRANSFERENCIA: "TRANSFERENCIA", OTRO: "OTRO" },
+  MetodoPago: { EFECTIVO: "EFECTIVO", TRANSFERENCIA: "TRANSFERENCIA", OTRO: "OTRO", WOMPI: "WOMPI" },
+  VentaLifecycleError,
+  reservarBoletosParaVenta: (...args: unknown[]) => reservarBoletosParaVenta(...args),
 }));
+
+const buildWompiCheckoutUrl = vi.fn();
+vi.mock("@/lib/wompi", () => ({
+  buildWompiCheckoutUrl: (...args: unknown[]) => buildWompiCheckoutUrl(...args),
+}));
+
+const headersMock = vi.fn();
+vi.mock("next/headers", () => ({ headers: () => headersMock() }));
+
+const redirectMock = vi.fn((url: string) => {
+  throw new Error(`REDIRECT:${url}`);
+});
+vi.mock("next/navigation", () => ({ redirect: (url: string) => redirectMock(url) }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const { reservarBoletos } = await import("./actions.js");
+const { reservarBoletos, iniciarPagoWompi } = await import("./actions.js");
 
 function formDataFrom(fields: Record<string, string | string[]>) {
   const formData = new FormData();
@@ -45,23 +45,26 @@ function formDataFrom(fields: Record<string, string | string[]>) {
   return formData;
 }
 
-const validFields = { rifaId: "r1", metodoPago: "TRANSFERENCIA", numeros: ["4"] };
-
 describe("reservarBoletos", () => {
+  const validFields = { rifaId: "r1", metodoPago: "TRANSFERENCIA", numeros: ["4"] };
+
   beforeEach(() => {
     vi.clearAllMocks();
     authMock.mockResolvedValue({ user: { id: "cli1", rol: "CLIENTE", tenantId: "t1" } });
-    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "ACTIVA", precioBoleto: 15 });
-    boletoFindMany.mockResolvedValue([{ id: "b4", numero: 4, estado: "DISPONIBLE" }]);
-    boletoUpdateMany.mockResolvedValue({ count: 1 });
-    ventaCreate.mockResolvedValue({ id: "v1" });
+    reservarBoletosParaVenta.mockResolvedValue({ ventaId: "v1", montoTotal: 15 });
   });
 
   it("rechaza si la sesión no es CLIENTE", async () => {
     authMock.mockResolvedValue({ user: { id: "u1", rol: "VENDEDOR", tenantId: "t1" } });
     const result = await reservarBoletos(undefined, formDataFrom(validFields));
     expect(result?.error).toMatch(/no tiene permiso/i);
-    expect(ventaCreate).not.toHaveBeenCalled();
+    expect(reservarBoletosParaVenta).not.toHaveBeenCalled();
+  });
+
+  it("rechaza un método de pago que no sea manual (ej. WOMPI)", async () => {
+    const result = await reservarBoletos(undefined, formDataFrom({ ...validFields, metodoPago: "WOMPI" }));
+    expect(result?.error).toMatch(/método de pago/i);
+    expect(reservarBoletosParaVenta).not.toHaveBeenCalled();
   });
 
   it("rechaza sin boletos seleccionados", async () => {
@@ -69,33 +72,69 @@ describe("reservarBoletos", () => {
     expect(result?.error).toMatch(/elegí/i);
   });
 
-  it("rechaza si la rifa no está ACTIVA", async () => {
-    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "CERRADA", precioBoleto: 15 });
+  it("propaga el error del helper compartido (ej. rifa no activa)", async () => {
+    reservarBoletosParaVenta.mockRejectedValue(new VentaLifecycleError("La rifa no está activa"));
     const result = await reservarBoletos(undefined, formDataFrom(validFields));
-    expect(result?.error).toMatch(/activa/i);
+    expect(result?.error).toBe("La rifa no está activa");
   });
 
-  it("rechaza si el boleto ya no está disponible (condición de carrera)", async () => {
-    boletoUpdateMany.mockResolvedValue({ count: 0 });
-    const result = await reservarBoletos(undefined, formDataFrom(validFields));
-    expect(result?.error).toMatch(/ya no están disponibles/);
-  });
-
-  it("crea la venta PENDIENTE y reserva los boletos", async () => {
+  it("reserva vía el helper compartido con el método de pago elegido", async () => {
     const result = await reservarBoletos(undefined, formDataFrom(validFields));
     expect(result).toBeUndefined();
-    expect(ventaCreate).toHaveBeenCalledWith({
-      data: {
-        rifaId: "r1",
-        clienteId: "cli1",
-        montoTotal: 15,
-        metodoPago: "TRANSFERENCIA",
-        estado: "PENDIENTE",
-      },
+    expect(reservarBoletosParaVenta).toHaveBeenCalledWith(expect.anything(), {
+      rifaId: "r1",
+      clienteId: "cli1",
+      numeros: [4],
+      metodoPago: "TRANSFERENCIA",
     });
-    expect(boletoUpdateMany).toHaveBeenCalledWith({
-      where: { id: { in: ["b4"] }, estado: "DISPONIBLE" },
-      data: { estado: "RESERVADO", ventaId: "v1" },
+  });
+});
+
+describe("iniciarPagoWompi", () => {
+  const validFields = { rifaId: "r1", numeros: ["4"] };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authMock.mockResolvedValue({ user: { id: "cli1", rol: "CLIENTE", tenantId: "t1" } });
+    reservarBoletosParaVenta.mockResolvedValue({ ventaId: "v1", montoTotal: 15 });
+    headersMock.mockReturnValue(new Map([["host", "acme.localhost:3003"]]));
+    buildWompiCheckoutUrl.mockReturnValue("https://checkout.wompi.co/p/?fake=1");
+  });
+
+  it("rechaza si la sesión no es CLIENTE", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", rol: "VENDEDOR", tenantId: "t1" } });
+    const result = await iniciarPagoWompi(undefined, formDataFrom(validFields));
+    expect(result?.error).toMatch(/no tiene permiso/i);
+    expect(reservarBoletosParaVenta).not.toHaveBeenCalled();
+  });
+
+  it("rechaza sin boletos seleccionados", async () => {
+    const result = await iniciarPagoWompi(undefined, formDataFrom({ ...validFields, numeros: [] }));
+    expect(result?.error).toMatch(/elegí/i);
+  });
+
+  it("propaga el error del helper compartido sin redirigir", async () => {
+    reservarBoletosParaVenta.mockRejectedValue(new VentaLifecycleError("Algunos números ya no están disponibles"));
+    const result = await iniciarPagoWompi(undefined, formDataFrom(validFields));
+    expect(result?.error).toBe("Algunos números ya no están disponibles");
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("reserva forzando metodoPago WOMPI y redirige a la URL de checkout", async () => {
+    await expect(iniciarPagoWompi(undefined, formDataFrom(validFields))).rejects.toThrow(
+      "REDIRECT:https://checkout.wompi.co/p/?fake=1",
+    );
+
+    expect(reservarBoletosParaVenta).toHaveBeenCalledWith(expect.anything(), {
+      rifaId: "r1",
+      clienteId: "cli1",
+      numeros: [4],
+      metodoPago: "WOMPI",
+    });
+    expect(buildWompiCheckoutUrl).toHaveBeenCalledWith({
+      reference: "t1--v1",
+      amountInCents: 1500,
+      redirectUrl: "http://acme.localhost:3003/mis-boletos?wompi=1",
     });
   });
 });

@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { assertRole } from "@rifaxapp/auth";
-import { RifaEstado, BoletoEstado, VentaEstado } from "@rifaxapp/db-tenant";
+import {
+  RifaEstado,
+  BoletoEstado,
+  confirmarPagoDeVenta as confirmarPagoDeVentaShared,
+  anularVentaPendiente as anularVentaPendienteShared,
+} from "@rifaxapp/db-tenant";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { auth } from "@/auth";
 
@@ -141,24 +146,21 @@ export async function cerrarRifa(
   return undefined;
 }
 
+// La transacción de confirmar/anular vive en @rifaxapp/db-tenant
+// (confirmarPagoDeVenta/anularVentaPendiente) porque el webhook de Wompi
+// (Fase 8) necesita disparar exactamente la misma lógica sin sesión ni
+// RBAC — acá solo se resuelve el permiso y se revalida la ruta.
 export async function confirmarPagoVenta(ventaId: string) {
   const session = await auth();
   assertRole(session, ["TENANT_ADMIN"]);
 
   const prisma = await getTenantPrismaClient(session.user.tenantId);
   const venta = await prisma.venta.findUnique({ where: { id: ventaId } });
-  if (!venta || venta.estado !== VentaEstado.PENDIENTE) {
+  if (!venta) {
     throw new Error("Solo se puede confirmar una venta en estado PENDIENTE");
   }
 
-  await prisma.$transaction([
-    prisma.venta.update({ where: { id: ventaId }, data: { estado: VentaEstado.PAGADA } }),
-    prisma.boleto.updateMany({
-      where: { ventaId, estado: BoletoEstado.RESERVADO },
-      data: { estado: BoletoEstado.VENDIDO },
-    }),
-  ]);
-
+  await confirmarPagoDeVentaShared(prisma, ventaId);
   revalidatePath(`/rifas/${venta.rifaId}/ventas`);
 }
 
@@ -168,17 +170,10 @@ export async function anularVenta(ventaId: string) {
 
   const prisma = await getTenantPrismaClient(session.user.tenantId);
   const venta = await prisma.venta.findUnique({ where: { id: ventaId } });
-  if (!venta || venta.estado !== VentaEstado.PENDIENTE) {
+  if (!venta) {
     throw new Error("Solo se puede anular una venta en estado PENDIENTE");
   }
 
-  await prisma.$transaction([
-    prisma.venta.update({ where: { id: ventaId }, data: { estado: VentaEstado.ANULADA } }),
-    prisma.boleto.updateMany({
-      where: { ventaId, estado: BoletoEstado.RESERVADO },
-      data: { estado: BoletoEstado.DISPONIBLE, ventaId: null },
-    }),
-  ]);
-
+  await anularVentaPendienteShared(prisma, ventaId);
   revalidatePath(`/rifas/${venta.rifaId}/ventas`);
 }

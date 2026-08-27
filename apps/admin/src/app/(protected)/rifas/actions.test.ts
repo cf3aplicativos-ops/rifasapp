@@ -10,13 +10,14 @@ const boletoCreateMany = vi.fn();
 const boletoFindUnique = vi.fn();
 const boletoUpdateMany = vi.fn();
 const ventaFindUnique = vi.fn();
-const ventaUpdate = vi.fn();
 const transaction = vi.fn().mockResolvedValue(undefined);
+const confirmarPagoDeVenta = vi.fn().mockResolvedValue(undefined);
+const anularVentaPendiente = vi.fn().mockResolvedValue(undefined);
 
 const getTenantPrismaClient = vi.fn().mockResolvedValue({
   rifa: { findUnique: rifaFindUnique, create: rifaCreate, update: rifaUpdate },
   boleto: { createMany: boletoCreateMany, findUnique: boletoFindUnique, updateMany: boletoUpdateMany },
-  venta: { findUnique: ventaFindUnique, update: ventaUpdate },
+  venta: { findUnique: ventaFindUnique },
   $transaction: transaction,
 });
 vi.mock("@rifaxapp/tenant-resolver", () => ({
@@ -26,7 +27,8 @@ vi.mock("@rifaxapp/tenant-resolver", () => ({
 vi.mock("@rifaxapp/db-tenant", () => ({
   RifaEstado: { BORRADOR: "BORRADOR", ACTIVA: "ACTIVA", CERRADA: "CERRADA", CANCELADA: "CANCELADA" },
   BoletoEstado: { DISPONIBLE: "DISPONIBLE", RESERVADO: "RESERVADO", VENDIDO: "VENDIDO" },
-  VentaEstado: { PENDIENTE: "PENDIENTE", PAGADA: "PAGADA", ANULADA: "ANULADA" },
+  confirmarPagoDeVenta: (prisma: unknown, ventaId: string) => confirmarPagoDeVenta(prisma, ventaId),
+  anularVentaPendiente: (prisma: unknown, ventaId: string) => anularVentaPendiente(prisma, ventaId),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -172,19 +174,22 @@ describe("confirmarPagoVenta", () => {
     authMock.mockResolvedValue({ user: { id: "u1", rol: "TENANT_ADMIN", tenantId: "t1" } });
   });
 
-  it("tira si la venta no está PENDIENTE", async () => {
-    ventaFindUnique.mockResolvedValue({ id: "v1", estado: "PAGADA", rifaId: "r1" });
+  it("tira si la venta no existe", async () => {
+    ventaFindUnique.mockResolvedValue(null);
     await expect(confirmarPagoVenta("v1")).rejects.toThrow(/PENDIENTE/);
+    expect(confirmarPagoDeVenta).not.toHaveBeenCalled();
   });
 
-  it("marca la venta PAGADA y los boletos VENDIDO", async () => {
+  it("delega la transacción al helper compartido de @rifaxapp/db-tenant", async () => {
     ventaFindUnique.mockResolvedValue({ id: "v1", estado: "PENDIENTE", rifaId: "r1" });
     await confirmarPagoVenta("v1");
-    expect(ventaUpdate).toHaveBeenCalledWith({ where: { id: "v1" }, data: { estado: "PAGADA" } });
-    expect(boletoUpdateMany).toHaveBeenCalledWith({
-      where: { ventaId: "v1", estado: "RESERVADO" },
-      data: { estado: "VENDIDO" },
-    });
+    expect(confirmarPagoDeVenta).toHaveBeenCalledWith(expect.anything(), "v1");
+  });
+
+  it("propaga el error del helper si la venta no está PENDIENTE", async () => {
+    ventaFindUnique.mockResolvedValue({ id: "v1", estado: "PAGADA", rifaId: "r1" });
+    confirmarPagoDeVenta.mockRejectedValueOnce(new Error("Solo se puede confirmar una venta en estado PENDIENTE"));
+    await expect(confirmarPagoVenta("v1")).rejects.toThrow(/PENDIENTE/);
   });
 });
 
@@ -194,18 +199,15 @@ describe("anularVenta", () => {
     authMock.mockResolvedValue({ user: { id: "u1", rol: "TENANT_ADMIN", tenantId: "t1" } });
   });
 
-  it("tira si la venta no está PENDIENTE", async () => {
-    ventaFindUnique.mockResolvedValue({ id: "v1", estado: "ANULADA", rifaId: "r1" });
+  it("tira si la venta no existe", async () => {
+    ventaFindUnique.mockResolvedValue(null);
     await expect(anularVenta("v1")).rejects.toThrow(/PENDIENTE/);
+    expect(anularVentaPendiente).not.toHaveBeenCalled();
   });
 
-  it("marca la venta ANULADA y libera los boletos", async () => {
+  it("delega la transacción al helper compartido de @rifaxapp/db-tenant", async () => {
     ventaFindUnique.mockResolvedValue({ id: "v1", estado: "PENDIENTE", rifaId: "r1" });
     await anularVenta("v1");
-    expect(ventaUpdate).toHaveBeenCalledWith({ where: { id: "v1" }, data: { estado: "ANULADA" } });
-    expect(boletoUpdateMany).toHaveBeenCalledWith({
-      where: { ventaId: "v1", estado: "RESERVADO" },
-      data: { estado: "DISPONIBLE", ventaId: null },
-    });
+    expect(anularVentaPendiente).toHaveBeenCalledWith(expect.anything(), "v1");
   });
 });

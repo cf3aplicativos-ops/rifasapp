@@ -2,6 +2,12 @@ export { createTenantPrismaClient } from "./client";
 export { TENANT_SCHEMA_SQL } from "./schema-sql";
 export { expirarVentasVencidas, DEFAULT_RESERVA_TTL_HORAS } from "./expirar-ventas-vencidas";
 export {
+  reservarBoletosParaVenta,
+  confirmarPagoDeVenta,
+  anularVentaPendiente,
+  VentaLifecycleError,
+} from "./venta-lifecycle";
+export {
   PrismaClient,
   UsuarioRol,
   RifaEstado,

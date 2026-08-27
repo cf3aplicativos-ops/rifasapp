@@ -4,11 +4,11 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 7 completa: `/reportes` en `apps/admin` (recaudado y boletos por rifa, desglosado por vendedor/autocompra).
+**2026-08-27** — Fase 8 completa: pago real con **Wompi** (Web Checkout + webhook) para la autocompra de `CLIENTE` en `apps/clientes`.
 
 ## Fase actual
 
-**Fase 7 — reportes de ventas** cerrada. Fases 0-6 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (usuario confirmó 2026-08-27 que no lo compró aún — no puedo comprarlo yo, es una transacción con dinero real; instrucciones de compra + conexión a Vercel quedaron dadas en el chat, retomar cuando el usuario lo tenga). Próxima: Fase 8, a definir con el usuario (candidatos: `Pago` con pasarela real, notificaciones, o Multi Zones apenas haya dominio).
+**Fase 8 — pasarela de pago Wompi** cerrada. Fases 0-7 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (usuario confirmó 2026-08-27 que no lo compró aún — no puedo comprarlo yo, es una transacción con dinero real; instrucciones de compra + conexión a Vercel quedaron dadas en el chat, retomar cuando el usuario lo tenga). **Pendiente crítico del usuario**: cargar las llaves REALES de sandbox de Wompi (hoy corre con placeholders de prueba, ver sección Fase 8) y configurar la URL del webhook en su dashboard de Wompi antes de poder cobrar de verdad. Próxima: Fase 9, a definir con el usuario.
 
 ## Qué se completó en esta sesión
 
@@ -233,17 +233,51 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: push a `main` (`fc3d626`) disparó el auto-deploy; confirmado `● Ready` en Production para `rifaxapp-admin` (única app tocada esta fase).
 
+## Fase 8 — pasarela de pago Wompi (2026-08-27)
+
+**Contexto**: el usuario ya tiene cuenta en Wompi y pidió que la autocompra de `CLIENTE` pague online de una, sin depender de que un `TENANT_ADMIN` confirme a mano. **Decisiones confirmadas con el usuario**: una sola cuenta Wompi compartida para toda la plataforma por ahora (no credenciales por tenant — se puede migrar después), arrancar con llaves de sandbox.
+
+**Método: Web Checkout (redirect), no el Widget embebido** — investigado en `docs.wompi.co` (ver fuentes abajo). Se arma una URL con querystring server-side (sin cargar ningún script de Wompi en el cliente) y se hace `redirect()` a `https://checkout.wompi.co/p/` con `public-key`, `currency=COP`, `amount-in-cents`, `reference`, `redirect-url` y `signature:integrity` = `SHA256(reference + amountInCents + currency + integritySecret)`.
+
+**Cómo el webhook sabe a qué tenant pertenece una transacción**: Wompi pega a UNA URL fija (`apps/clientes/.../api/webhooks/wompi`), sin contexto de subdominio. Se codifica `reference = "{tenantId}--{ventaId}"` al armar el checkout; el webhook lo parsea y resuelve la DB del tenant con `getTenantPrismaClient(tenantId)` (ya existía, Fase 2). `tenantId` (cuid, sin guiones) y `ventaId` (uuid, con guiones simples) nunca chocan con el separador `--`.
+
+**Verificación del webhook** (evento `transaction.updated`): concatenar los valores de `signature.properties` (resueltos dinámicamente contra `data`, NUNCA asumir un array fijo — Wompi lo puede variar por evento) + `timestamp` + `WOMPI_EVENTS_SECRET`, SHA256, comparar contra `signature.checksum`. `status` puede ser `PENDING | APPROVED | DECLINED | VOIDED | ERROR`. Se responde `200` siempre que la firma sea válida (incluso en los casos no-op) para que Wompi no reintente sin necesidad — Wompi reintenta hasta 3 veces si no le devolvemos 2xx.
+
+**Refactor clave — lógica de negocio movida a `packages/db-tenant/src/venta-lifecycle.ts`**: el webhook no tiene sesión ni RBAC, así que necesitaba ejecutar EXACTAMENTE las mismas transacciones que ya corrían solo en `apps/admin`/`apps/clientes`. Se extrajeron `reservarBoletosParaVenta`, `confirmarPagoDeVenta` y `anularVentaPendiente` (mismo código, misma protección de condición de carrera vía `updateMany` condicionado dentro de una transacción interactiva) — las Server Actions de `apps/admin` (`confirmarPagoVenta`, `anularVenta`) y `apps/clientes` (`reservarBoletos`) pasaron a ser wrappers finos: RBAC → helper compartido → `revalidatePath`. El webhook llama a los mismos helpers directo, sin RBAC (la autenticación acá es la firma criptográfica del payload, no una sesión). Idempotente por construcción: si `confirmarPagoDeVenta` corre dos veces (evento duplicado) sobre una `Venta` ya `PAGADA`, tira y el webhook lo ignora (`.catch(() => {})`), sigue respondiendo 200.
+
+**Nueva Server Action `iniciarPagoWompi`** en `apps/clientes` (junto a `reservarBoletos`, que se mantiene intacta como "reservar y pagar por tu cuenta" — transferencia/efectivo/otro, confirmación manual): reserva los boletos igual que siempre pero forzando `metodoPago: WOMPI`, arma la URL de checkout y hace `redirect()` **fuera** del `try/catch` que atrapa errores de la reserva (mismo cuidado que con `AuthError`/`NEXT_REDIRECT` documentado en Fase 3 — un `redirect()` adentro de un catch genérico se traga a sí mismo). `MetodoPago` sumó el valor `WOMPI` (migración `20260827153120_add_metodo_pago_wompi`); el form manual de "pagar por tu cuenta" ahora solo acepta `EFECTIVO/TRANSFERENCIA/OTRO` — no deja elegir `WOMPI` a mano, evita que una `Venta` quede marcada `WOMPI` sin haber pasado realmente por la pasarela.
+
+**UI** (`apps/clientes/.../rifas/[rifaId]/reserva-form.tsx`): dos `<form>` hermanos que comparten la grilla de selección de boletos — "Pagar ahora con Wompi" (`iniciarPagoWompi`) y "Reservar boletos" (la manual de siempre, sin cambios de comportamiento ni de texto — el e2e existente que la clickea no se tocó).
+
+**Gotcha nuevo — caché de Turbopack corrupta tras varias migraciones seguidas**: en medio de esta fase, `/rifas/[rifaId]/ventas` en `apps/admin` empezó a devolver 404 en dev (la página de Next.js `not-found.tsx` real, no un error) pese a que el archivo y el código estaban bien — pasó en dos corridas de e2e seguidas, con y sin reiniciar el dev server. Se resolvió borrando `.next` de las 4 apps (`rm -rf apps/*/. next`) y arrancando de cero. Sospecha: tantas corridas seguidas de `prisma migrate dev` contra la DB descartable (Fases 5-8, todas en esta sesión) regenerando `packages/db-tenant/src/generated/client` mientras los 4 dev servers corrían y lo vigilaban con file-watchers puede haber dejado el route manifest de Turbopack en un estado inconsistente. Si vuelve a pasar un 404 "fantasma" en dev sin motivo aparente en el código: probar `rm -rf apps/*/.next` antes de asumir un bug real.
+
+**Env vars nuevas en `apps/clientes`** (`.env.local`, no en Vercel todavía): `WOMPI_PUBLIC_KEY`, `WOMPI_INTEGRITY_SECRET`, `WOMPI_EVENTS_SECRET` — hoy con **valores de prueba propios** (no las llaves reales de Wompi), suficientes para probar que el algoritmo de firma/checksum funciona de punta a punta, pero un pago real en `checkout.wompi.co` va a fallar hasta reemplazarlos.
+
+**⚠️ Pendiente crítico del usuario antes de cobrar de verdad**:
+1. Cargar las llaves REALES de sandbox de Wompi (Developers > Secrets for technical integration en su dashboard) en `WOMPI_PUBLIC_KEY`/`WOMPI_INTEGRITY_SECRET`/`WOMPI_EVENTS_SECRET` — local y en Vercel (`rifaxapp-clientes`).
+2. Configurar la URL del webhook en su dashboard de Wompi (Developers > Webhook URL, terceros): `https://<url-de-rifaxapp-clientes>/api/webhooks/wompi` — yo no tengo acceso a ese dashboard, lo tiene que hacer el usuario.
+3. Probar un pago de verdad en sandbox con tarjeta de prueba una vez cargadas las llaves.
+
+**Pruebas**:
+- Unit: `apps/clientes/src/lib/wompi.test.ts` (8 tests — firma de integridad y checksum de evento contra un hash calculado independientemente con `node:crypto` en el propio test, no reusando la implementación). `packages/db-tenant/src/venta-lifecycle.test.ts` (8 tests). `apps/clientes/.../api/webhooks/wompi/route.test.ts` (10 tests — dispatch por status, idempotencia, 401 si la firma no matchea, 400 si el JSON es inválido). `apps/clientes/.../rifas/actions.test.ts` extendido con `iniciarPagoWompi` (9 tests en total). `apps/admin/.../rifas/actions.test.ts` ajustado al refactor (18 tests en total). **103 tests en el repo, todos verdes.**
+- E2E (nuevo, `e2e/pago-wompi-flow.spec.ts`, real contra Neon): crea tenant → `TENANT_ADMIN` crea y activa una rifa → `CLIENTE` se registra, selecciona un boleto, clickea "Pagar ahora con Wompi" → se intercepta la navegación a `checkout.wompi.co` (`page.route`, sin pegarle al Wompi real) y se valida `reference`/`amount-in-cents`/`signature:integrity` en la URL → se simula el webhook `transaction.updated APPROVED` con `page.request.post()` y un checksum válido calculado en el test → se confirma en `/mis-boletos` que el boleto quedó "Confirmada". Los 5 e2e preexistentes se corrieron uno por uno y siguen todos verdes (una corrida tuvo el mismo `ERR_NETWORK_IO_SUSPENDED` transitorio ya documentado, resuelto reintentando).
+
+**Fuentes de Wompi consultadas**: [Widget & Checkout Web](https://docs.wompi.co/en/docs/colombia/widget-checkout-web/), [Events](https://docs.wompi.co/en/docs/colombia/eventos/), [Transactions](https://docs.wompi.co/en/docs/colombia/transacciones/).
+
+**Deploy**: push a `main` disparó el auto-deploy; confirmar `● Ready` en `rifaxapp-admin` y `rifaxapp-clientes` (únicas apps tocadas esta fase) antes de cerrar la sesión.
+
 ## Próximo paso concreto
 
-1. **Fase 8** (a definir con el usuario): `Pago` con pasarela real (Stripe/Wompi/PayU), notificaciones (email/WhatsApp) al confirmar un pago, o Multi Zones apenas el usuario tenga el dominio comprado (ver Fase 7 arriba para los pasos exactos).
+1. **Fase 9** (a definir con el usuario): notificaciones (email/WhatsApp) al confirmar un pago, o Multi Zones apenas el usuario tenga el dominio comprado.
 2. **Dominio**: bloqueado en que el usuario compre `rifaxapp.com` — instrucciones ya dadas, retomar apenas confirme que lo tiene.
-3. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
-4. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla.
-5. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
+3. **Wompi**: bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard — ver los 3 puntos de "Pendiente crítico del usuario" en Fase 8 arriba.
+4. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
+5. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
+6. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 7 cerrada de punta a punta: `/reportes` implementado y verificado con e2e real contra Neon (recaudado/boletos por rifa y por vendedor). El dominio quedó explícitamente bloqueado en que el usuario lo compre — no es un olvido, es la razón por la que se saltó a reportes en esta sesión. Nada quedó a medias sin commitear. Quien retome: el próximo paso es Fase 8, a definir con el usuario (o retomar el dominio si ya lo compró) — lee este archivo completo antes de tocar nada, y no te olvides del `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`.
+Fase 8 cerrada de punta a punta: pago real con Wompi (Web Checkout + webhook) implementado, con la lógica de negocio de `Venta` refactorizada a `packages/db-tenant` para que el webhook la reuse sin duplicar transacciones. 31 tests unitarios nuevos (103 en el repo) + 1 e2e nuevo, todos verdes junto con los 5 preexistentes. Corre con credenciales de Wompi de prueba — **queda explícitamente bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard antes de poder cobrar de verdad** (no es un olvido, está en "Pendiente crítico del usuario" arriba). Nada quedó a medias sin commitear. Quien retome: lee este archivo completo antes de tocar nada, no te olvides del `NODE_OPTIONS=--use-system-ca` al levantar `npm run dev`, y si ves un 404 fantasma probá `rm -rf apps/*/.next` antes de asumir un bug real.
 
 ## Notas técnicas de arquitectura para quien retome
 
