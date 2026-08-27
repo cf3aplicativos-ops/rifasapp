@@ -4,15 +4,15 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 9 completa: notificaciones por **email** (Resend) al `CLIENTE` cuando se confirma su pago y cuando gana una rifa.
+**2026-08-27** — Fase 10 completa: `typescript` bajado a la línea 6.x en todo el repo, `npm run lint` vuelve a funcionar (encontró y se arreglaron 2 bugs reales de React).
 
 ## Fase actual
 
-**Fase 9 — notificaciones por email** cerrada. Fases 0-8 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (instrucciones de compra + conexión a Vercel ya dadas en el chat, retomar cuando el usuario lo tenga). **Pendientes críticos del usuario** (ninguno bloquea seguir desarrollando, sí bloquean que el producto cobre/notifique de verdad):
+**Fase 10 — arreglar el lint** cerrada. Fases 0-9 siguen cerradas. **Dominio `rifaxapp.com` todavía no comprado** (instrucciones de compra + conexión a Vercel ya dadas en el chat, retomar cuando el usuario lo tenga). **Pendientes críticos del usuario** (ninguno bloquea seguir desarrollando, sí bloquean que el producto cobre/notifique de verdad):
 1. Wompi: cargar las llaves REALES de sandbox (hoy corre con placeholders de prueba, ver Fase 8) y configurar la URL del webhook en su dashboard.
-2. Resend (nuevo, Fase 9): crear cuenta en resend.com, sacar una API key, y decidir si verifica un dominio propio o arranca con el `onboarding@resend.dev` de pruebas (que solo entrega a la casilla con la que se registró la cuenta, no sirve para clientes reales).
+2. Resend: crear cuenta en resend.com, sacar una API key, y decidir si verifica un dominio propio o arranca con el `onboarding@resend.dev` de pruebas (que solo entrega a la casilla con la que se registró la cuenta, no sirve para clientes reales) — ver Fase 9.
 
-Próxima: Fase 10, a definir con el usuario.
+Próxima: Fase 11, a definir con el usuario.
 
 ## Qué se completó en esta sesión
 
@@ -292,19 +292,32 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: push a `main` (`045b048`) disparó el auto-deploy; confirmado `● Ready` en Production para `rifaxapp-admin` y `rifaxapp-clientes` (únicas apps tocadas esta fase). No hizo falta tocar env vars — `RESEND_API_KEY` ausente es un no-op seguro por diseño.
 
+## Fase 10 — arreglar el lint, TS 6.x en todo el repo (2026-08-27)
+
+**Contexto**: desde Fase 0, `typescript` estaba pinneado en `7.0.2` (la nueva reescritura en Go de Microsoft, publicada bajo el nombre normal `typescript` en npm) en todo el repo, y `npm run lint` fallaba directo con un `TypeError` en `ts-api-utils` — `@typescript-eslint/typescript-estree` necesita la API programática del compilador clásico (JS), que TS7 no expone igual. Sin dominio para retomar Multi Zones, el usuario eligió sacarse este pendiente de encima.
+
+**Hallazgo clave**: TypeScript sigue publicando la línea clásica 6.x bajo el nombre normal del paquete (`typescript@6.0.3`, la última estable) — **no** hace falta el alias raro `npm:@typescript/typescript6@...` que ya estaba puesto en `packages/eslint-config` (probablemente un parche temprano antes de que 6.0.3 saliera bajo el nombre normal). Se pinneó `"typescript": "6.0.3"` (sin caret, mismo criterio que el resto del repo) en las **12** `package.json` del monorepo: raíz, `packages/eslint-config` (reemplazando el alias), los otros 6 packages que ya tenían `7.0.2` pinneado, y las 4 apps que tenían `"typescript": "^5"` (un rango que en la práctica nunca se cumplía, porque npm hoisteaba la 7.0.2 de la raíz igual).
+
+**`npm run lint` encontró 2 bugs reales** (no falsos positivos) una vez que pudo correr: `react-hooks/set-state-in-effect` (regla de `eslint-plugin-react-hooks@7.1.1`) marcó `setSeleccionados([])` corriendo síncrono adentro de un `useEffect` en `apps/vendedores/.../venta-form.tsx` y `apps/clientes/.../reserva-form.tsx` (el patrón "resetear selección tras un submit exitoso" de Fase 5). Se arregló con el patrón que recomienda react.dev ["Ajustar estado cuando cambia una prop"](https://react.dev/learn/you-might-not-need-an-effect#adjusting-state-based-on-a-prop): comparar `isPending` contra su valor anterior y llamar `setState` **durante el render** (no en un efecto) — funcionalmente idéntico, sin el re-render en cascada que la regla señala. Se sacó también un `console.error` que faltaba en el catch de `createTenant` (`apps/superadmin`) que generaba un warning de variable sin usar.
+
+**Lo que queda como warning, a propósito**: los 3 `SignOutButton` (`admin`/`vendedores`/`clientes`) usan `window.location.href` para forzar una navegación dura — es el fix documentado de Fase 3 para el bug de redirects encadenados de `signOut()`, así que la regla `@next/next/no-location-assign-relative-destination` lo marca como warning pero **no** se toca (sacarlo reabriría ese bug). `npm run lint` pasa limpio igual porque solo `packages/ui` tiene `--max-warnings 0`.
+
+**Pruebas**: `npm run lint` (5/5, solo los 3 warnings intencionales), `npm run check-types` (6/6) + `npx tsc --noEmit` en las 4 apps, `npx vitest run` (116 tests, sin cambios de código de negocio), `npm run build --force` (6/6, todas las apps). Se re-corrieron los 6 e2e del repo contra Neon real (con `NODE_OPTIONS=--use-system-ca` y `.next` limpio) para confirmar que el refactor de los dos forms no cambió el comportamiento — los 6 pasaron a la primera, sin necesitar reintentos esta vez.
+
+**Deploy**: push a `main` disparó el auto-deploy de las 4 apps — confirmar `● Ready` antes de cerrar esta sesión.
+
 ## Próximo paso concreto
 
-1. **Fase 10** (a definir con el usuario): Multi Zones apenas haya dominio, o lo que el usuario prefiera.
+1. **Fase 11** (a definir con el usuario): a elegir cuando el usuario quiera.
 2. **Dominio**: bloqueado en que el usuario compre `rifaxapp.com` — instrucciones ya dadas, retomar apenas confirme que lo tiene.
 3. **Wompi**: bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard — ver Fase 8.
-4. **Resend** (nuevo): bloqueado en que el usuario cree la cuenta y pase la API key — ver los 3 puntos de Fase 9 arriba.
-5. Decidir si se baja `typescript` a 6.x en todo el repo para que `npm run lint` vuelva a funcionar (preexistente, no bloqueante para desarrollar).
-6. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
-7. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
+4. **Resend**: bloqueado en que el usuario cree la cuenta y pase la API key — ver Fase 9.
+5. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
+6. Si se quiere otro TTL de reserva que no sean 48hs, setear `RESERVA_TTL_HORAS` en las env vars de Vercel de `admin`/`vendedores`/`clientes` (no está seteada hoy, corre con el default del código).
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 9 cerrada de punta a punta: notificaciones por email (Resend) implementadas para pago confirmado y ganador de rifa, disparadas desde `apps/admin` y el webhook de Wompi en `apps/clientes`, con manejo de errores que nunca bloquea el flujo de negocio. 13 tests unitarios nuevos (116 en el repo) + los action tests existentes extendidos, todos verdes. Los 6 e2e del repo se re-corrieron y confirman (vía logs del dev server) que el wiring de notificaciones funciona en los dos puntos de disparo, corriendo en modo no-op porque todavía no hay cuenta de Resend real. Nada quedó a medias sin commitear. Quien retome: lee este archivo completo antes de tocar nada — hay 2 pendientes críticos del usuario (Wompi y Resend, ambos con llaves de prueba/no-op hoy) antes de que el producto cobre y notifique de verdad, no son un olvido.
+Fase 10 cerrada de punta a punta: `typescript` bajado a `6.0.3` en las 12 `package.json` del repo, `npm run lint` funciona de nuevo y de paso encontró/corrigió 2 bugs reales de React (`setState` síncrono en `useEffect`, arreglado con el patrón de ajustar estado durante el render). Type-check, tests unitarios, build de producción y los 6 e2e del repo — todos verdes. Nada quedó a medias sin commitear. Quien retome: lee este archivo completo antes de tocar nada — siguen los mismos 2 pendientes críticos del usuario (Wompi y Resend con credenciales de prueba) y el dominio sin comprar, ninguno es un olvido.
 
 ## Notas técnicas de arquitectura para quien retome
 

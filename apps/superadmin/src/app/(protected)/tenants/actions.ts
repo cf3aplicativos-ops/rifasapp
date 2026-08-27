@@ -115,6 +115,7 @@ export async function createTenant(
     const tenantPrisma = await getTenantPrismaClient(tenant.id);
     await tenantPrisma.usuario.count();
   } catch (error) {
+    console.error(`[createTenant] falló el provisioning del tenant "${slug}"`, error);
     await prisma.tenant.update({
       where: { id: tenant.id },
       data: { estado: TenantEstado.ERROR },

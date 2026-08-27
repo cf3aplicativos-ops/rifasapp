@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { reservarBoletos, iniciarPagoWompi } from "../actions";
 
 type BoletoInfo = { id: string; numero: number; estado: string };
@@ -9,14 +9,19 @@ export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: Bole
   const [state, formAction, isPending] = useActionState(reservarBoletos, undefined);
   const [wompiState, wompiFormAction, isWompiPending] = useActionState(iniciarPagoWompi, undefined);
   const [seleccionados, setSeleccionados] = useState<number[]>([]);
-  const [wasPending, setWasPending] = useState(false);
 
-  useEffect(() => {
-    if (wasPending && !isPending && !state?.error) {
+  // "Ajustar estado cuando cambia una prop" (react.dev) en vez de un
+  // useEffect: al pasar de pendiente a resuelto sin error, limpiar la
+  // selección — se hace durante el render (guardado el valor previo de
+  // isPending), no como efecto, para evitar el re-render en cascada que
+  // marca `react-hooks/set-state-in-effect`.
+  const [prevPending, setPrevPending] = useState(isPending);
+  if (isPending !== prevPending) {
+    setPrevPending(isPending);
+    if (prevPending && !isPending && !state?.error) {
       setSeleccionados([]);
     }
-    setWasPending(isPending);
-  }, [isPending, state, wasPending]);
+  }
 
   function toggle(numero: number, estado: string) {
     if (estado !== "DISPONIBLE") return;
