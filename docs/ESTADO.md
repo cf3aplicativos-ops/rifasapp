@@ -290,7 +290,7 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Pruebas**: `packages/notifications` tiene 13 tests unitarios (`resend-client.test.ts`: 4, mockeando el SDK `resend`; `pago-confirmado.test.ts`: 5; `ganador.test.ts`: 4 — todos verifican el criterio "sin cliente con email, no se envía nada" y que un error de prisma nunca se propaga). `apps/admin/.../rifas/actions.test.ts` y `apps/clientes/.../api/webhooks/wompi/route.test.ts` extendidos para verificar que `notificarPagoConfirmado`/`notificarGanador` se llaman en el momento correcto (y que un evento duplicado del webhook NO reenvía el email). **116 tests en el repo, todos verdes.** No se agregó un e2e nuevo dedicado — no hay forma de verificar una entrega de email real sin una cuenta de Resend de verdad (mismo criterio que con Wompi en Fase 8); en cambio se re-corrieron los 6 e2e existentes (algunos necesitaron un reintento por lentitud del entorno — sesión larga, muchos dev servers/conexiones a Neon abiertas durante horas, timeouts default de 5s quedaron cortos un par de veces; ningún fallo fue funcional, confirmado revisando los logs del dev server) y quedaron todos verdes, incluyendo la línea de log que confirma que el no-op de notificaciones se dispara correctamente en ambos puntos de la app.
 
-**Deploy**: pendiente de confirmar en esta sesión — ver "Próximo paso concreto".
+**Deploy**: push a `main` (`045b048`) disparó el auto-deploy; confirmado `● Ready` en Production para `rifaxapp-admin` y `rifaxapp-clientes` (únicas apps tocadas esta fase). No hizo falta tocar env vars — `RESEND_API_KEY` ausente es un no-op seguro por diseño.
 
 ## Próximo paso concreto
 
