@@ -264,7 +264,7 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Fuentes de Wompi consultadas**: [Widget & Checkout Web](https://docs.wompi.co/en/docs/colombia/widget-checkout-web/), [Events](https://docs.wompi.co/en/docs/colombia/eventos/), [Transactions](https://docs.wompi.co/en/docs/colombia/transacciones/).
 
-**Deploy**: push a `main` disparó el auto-deploy; confirmar `● Ready` en `rifaxapp-admin` y `rifaxapp-clientes` (únicas apps tocadas esta fase) antes de cerrar la sesión.
+**Deploy**: push a `main` (`5658d4d`) disparó el auto-deploy. Se agregaron las 3 env vars `WOMPI_*` (valores de prueba) a `rifaxapp-clientes` en Production/Preview/Development con `vercel env add`, y se hizo `vercel redeploy` para que el build ya construido las tomara. Confirmado `● Ready` en `rifaxapp-admin` y `rifaxapp-clientes` (únicas apps tocadas esta fase).
 
 ## Próximo paso concreto
 
