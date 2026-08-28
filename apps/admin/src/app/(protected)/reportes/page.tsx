@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
+import { Badge, type BadgeTone } from "@rifaxapp/ui/badge";
+import { Card } from "@rifaxapp/ui/card";
+import { PageHeader } from "@rifaxapp/ui/page-header";
+import { Stat, StatGrid } from "@rifaxapp/ui/stat";
 import { requireSession } from "@/lib/require-session";
 
 const RIFA_ESTADO_LABEL: Record<string, string> = {
@@ -7,6 +11,13 @@ const RIFA_ESTADO_LABEL: Record<string, string> = {
   ACTIVA: "Activa",
   CERRADA: "Cerrada",
   CANCELADA: "Cancelada",
+};
+
+const RIFA_ESTADO_TONE: Record<string, BadgeTone> = {
+  BORRADOR: "yellow",
+  ACTIVA: "green",
+  CERRADA: "gray",
+  CANCELADA: "red",
 };
 
 type VendedorBucket = {
@@ -74,21 +85,15 @@ export default async function ReportesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Reportes</h1>
-        <dl className="mt-2 flex gap-8 text-sm">
-          <div>
-            <dt className="text-gray-500">Recaudado (todas las rifas)</dt>
-            <dd className="text-lg font-semibold">${recaudadoTotal.toFixed(2)}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-500">Boletos vendidos (todas las rifas)</dt>
-            <dd className="text-lg font-semibold">{boletosVendidosTotal}</dd>
-          </div>
-        </dl>
+      <div className="space-y-4">
+        <PageHeader title="Reportes" />
+        <StatGrid>
+          <Stat label="Recaudado (todas las rifas)" value={`$${recaudadoTotal.toFixed(2)}`} />
+          <Stat label="Boletos vendidos (todas las rifas)" value={boletosVendidosTotal} />
+        </StatGrid>
       </div>
 
-      {rifas.length === 0 && <p className="text-gray-500">Todavía no hay rifas.</p>}
+      {rifas.length === 0 && <p className="text-gray-500 dark:text-gray-400">Todavía no hay rifas.</p>}
 
       {rifas.map((rifa) => {
         const conteos = conteosPorRifa.get(rifa.id) ?? {};
@@ -98,58 +103,44 @@ export default async function ReportesPage() {
         const vendidos = conteos.VENDIDO ?? 0;
 
         return (
-          <section key={rifa.id} className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+          <Card key={rifa.id} as="section" className="space-y-4">
             <div className="flex items-baseline justify-between">
               <h2 className="text-lg font-semibold">{rifa.nombre}</h2>
-              <span className="text-sm text-gray-500">{RIFA_ESTADO_LABEL[rifa.estado] ?? rifa.estado}</span>
+              <Badge tone={RIFA_ESTADO_TONE[rifa.estado] ?? "gray"}>
+                {RIFA_ESTADO_LABEL[rifa.estado] ?? rifa.estado}
+              </Badge>
             </div>
 
-            <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
-              <div>
-                <dt className="text-gray-500">Recaudado</dt>
-                <dd className="font-medium">${(resumen?.recaudado ?? 0).toFixed(2)}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Disponibles</dt>
-                <dd>{disponibles}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Reservados</dt>
-                <dd>{reservados}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Vendidos</dt>
-                <dd>{vendidos}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-500">Total boletos</dt>
-                <dd>{rifa.cantidadBoletos}</dd>
-              </div>
-            </dl>
+            <StatGrid>
+              <Stat label="Recaudado" value={`$${(resumen?.recaudado ?? 0).toFixed(2)}`} />
+              <Stat label="Disponibles" value={disponibles} />
+              <Stat label="Reservados" value={reservados} />
+              <Stat label="Vendidos" value={vendidos} />
+            </StatGrid>
 
             {resumen && resumen.porVendedor.size > 0 && (
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-800">
-                    <th className="py-1">Vendedor</th>
-                    <th className="py-1">Ventas</th>
-                    <th className="py-1">Boletos</th>
-                    <th className="py-1">Monto</th>
+                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">Vendedor</th>
+                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">Ventas</th>
+                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">Boletos</th>
+                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">Monto</th>
                   </tr>
                 </thead>
                 <tbody>
                   {Array.from(resumen.porVendedor.values()).map((bucket) => (
-                    <tr key={bucket.label} className="border-b border-gray-100 dark:border-gray-900">
-                      <td className="py-1">{bucket.label}</td>
-                      <td className="py-1">{bucket.cantidadVentas}</td>
-                      <td className="py-1">{bucket.boletosVendidos}</td>
-                      <td className="py-1">${bucket.monto.toFixed(2)}</td>
+                    <tr key={bucket.label} className="border-b border-gray-100 last:border-0 dark:border-gray-900">
+                      <td className="py-2">{bucket.label}</td>
+                      <td className="py-2">{bucket.cantidadVentas}</td>
+                      <td className="py-2">{bucket.boletosVendidos}</td>
+                      <td className="py-2">${bucket.monto.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-          </section>
+          </Card>
         );
       })}
     </div>

@@ -4,16 +4,16 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 14 completa: landing page pública en el dominio raíz de `rifax.lat` (sin subdominio de tenant). El dominio real ya está mayormente andando: `rifax.lat` y `app.rifax.lat` (superadmin) responden en producción; el wildcard `*.rifax.lat` (necesario para los tenants) necesitó corregir el registro DNS de `A` a `CNAME` — cargado por el usuario, propagó a nivel DNS pero **falta que Vercel termine de emitir el certificado SSL del comodín** (puede tardar, ver Fase 13/14).
+**2026-08-27** — Fase 15 completa: el mismo sistema de diseño de Fase 12 (`@rifaxapp/ui`) ahora también cubre el **contenido** de las páginas de `admin`/`vendedores`/`clientes` (tablas, formularios, dashboards, reportes) — antes solo cubría el login/sidebar. El wildcard `*.rifax.lat` (subdominios de tenant) sigue con el certificado SSL pendiente de emitir del lado de Vercel — el DNS ya está bien, es cuestión de tiempo.
 
 ## Fase actual
 
-**Fase 14 — landing page pública** cerrada. Fases 0-13 siguen cerradas. **Pendientes críticos del usuario**:
-1. **Certificado SSL del wildcard `*.rifax.lat`** (no bloquea seguir developando, sí bloquea que un tenant real ande en producción): el DNS ya está bien (CNAME cargado y propagado, confirmado), solo falta que Vercel termine de emitir el certificado — revisar en un rato con `vercel domains verify "*.rifax.lat" --scope rifa7` o probando `https://<slug>.rifax.lat` directo.
+**Fase 15 — rediseño del contenido interno de admin/vendedores/clientes** cerrada. Fases 0-14 siguen cerradas. **Pendientes críticos del usuario**:
+1. **Certificado SSL del wildcard `*.rifax.lat`** (no bloquea seguir developando, sí bloquea que un tenant real ande en producción): el DNS ya está bien (CNAME cargado y propagado, confirmado), solo falta que Vercel termine de emitir el certificado — revisar con `vercel domains verify "*.rifax.lat" --scope rifa7` o probando `https://<slug>.rifax.lat` directo.
 2. Wompi: cargar las llaves REALES de sandbox (hoy corre con placeholders de prueba, ver Fase 8) y configurar la URL del webhook en su dashboard.
 3. Resend: crear cuenta en resend.com, sacar una API key, y decidir si verifica un dominio propio o arranca con el `onboarding@resend.dev` de pruebas (que solo entrega a la casilla con la que se registró la cuenta, no sirve para clientes reales) — ver Fase 9.
 
-Próxima: Fase 15, a definir con el usuario.
+Próxima: Fase 16, a definir con el usuario.
 
 ## Qué se completó en esta sesión
 
@@ -400,10 +400,26 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: push a `main` disparó el auto-deploy; confirmado `● Ready` en Production para las 4 apps. `https://rifax.lat` ya muestra la landing en producción real (el dominio raíz viene andando desde el addendum de Fase 13).
 
+## Fase 15 — rediseño del contenido interno de admin/vendedores/clientes (2026-08-27)
+
+**Contexto**: Fase 12 rediseñó el chrome (login + sidebar) de las 4 apps. El usuario, tras poder entrar por primera vez con login real a `admin`/`vendedores`/`clientes` (una vez resuelto el acceso al dominio), notó que el **contenido** de cada página (tablas, formularios, dashboard, reportes) seguía con el markup básico sin estilo de las Fases 2-9 — se notaba la diferencia con el login/sidebar ya pulidos. Esta fase extiende `@rifaxapp/ui` a ese contenido.
+
+**Componentes nuevos en `@rifaxapp/ui`**: `PageHeader` (título + descripción + slot de acciones a la derecha, reemplaza el `<h1>` suelto de cada página), `Card` (contenedor con el mismo token `--radius-card` de `AuthShell`, acepta un prop `as` para el tag semántico — ver el gotcha abajo), `Stat`/`StatGrid` (tarjetas de métrica, reemplazan los `<dl>` de texto plano de dashboards/reportes/detalle de rifa). Se reusaron tal cual `Badge`/`Button`/`formInputClassName` de Fase 12, que ya existían pero no se habían aplicado todavía a estas páginas.
+
+**Aplicado en ~20 archivos** de las 3 apps (tablas de Sedes/Usuarios/Rifas/Ventas envueltas en `Card` con `Badge` de color por estado; formularios de creación con `formInputClassName`/`Button`; listas tipo tarjeta —rifas activas, mis-boletos— con `Card`). **Fuera de alcance a propósito**: la grilla de selección de números de boleto (`venta-form.tsx`/`reserva-form.tsx`) no se tocó — es un picker especializado que ya funcionaba bien, solo se pulieron los campos de formulario alrededor. Las acciones inline de fila (activar/cancelar rifa, confirmar/anular venta) se dejaron como links de texto compactos — un `Button` de bloque completo se ve fuera de lugar en una fila de tabla densa.
+
+**Gotcha real, encontrado con el e2e** (no con "compila"): `reportes/page.tsx` envolvía cada bloque de rifa en un `<section>` — al pasarlo a `<Card>` (que renderiza `<div>`), el selector `page.locator("section", {hasText: "Rifa moto"})` de `rifa-flujo-completo.spec.ts` dejó de encontrar nada. Se resolvió agregándole a `Card` un prop `as` (default `"div"`) para poder pedir `<Card as="section">` en ese caso puntual — más correcto que forzar el selector del test a algo genérico como `div`, que hubiera matcheado de más.
+
+**Aparte, en el camino** (no es parte del rediseño pero pasó en la misma sesión): se detectó que **borrar y volver a crear un tenant desde superadmin invalida cualquier credencial de Admin/Vendedor/Cliente** que se hubiera generado a mano para pruebas (queda un tenant nuevo, sin Sede/Vendedor/Cliente, con una password de admin autogenerada distinta) — confirmado revisando `vercel logs` de producción, no adivinado. No es un bug, es el comportamiento esperado de "crear tenant" (provisiona de cero), pero vale la pena tenerlo presente si se vuelven a necesitar credenciales de prueba para "mirifa": conviene generarlas y verificarlas contra la base (`bcrypt.compare` releído de la DB, no solo confiar en la variable local) recién después de confirmar que nadie va a tocar `/tenants` mientras tanto.
+
+**Pruebas**: sin tests unitarios nuevos (cambio de markup, no de lógica — mismo criterio que el resto de `page.tsx` del repo). Verificado visualmente con el Browser tool contra los 4 dev servers y las credenciales reales de `mirifa` (creó y canceló una rifa de prueba para ver `Badge`/`StatGrid` con datos reales, revisó dashboard/mis-boletos de los 3 roles). **124 tests** (sin cambios), lint/check-types limpios, `next build` 6/6. Los 6 e2e del repo, uno por uno — 2 fallos en el camino: uno de flakiness de entorno ya documentada (timeout corto en un cleanup, confirmado reintentando y con `vercel logs` que el borrado sí había terminado bien) y el gotcha real del `<section>`/`Card` de arriba (corregido). Los 6 quedaron verdes.
+
+**Deploy**: push a `main` disparó el auto-deploy; confirmado `● Ready` en Production para las 4 apps.
+
 ## Próximo paso concreto
 
 1. **Confirmar que el certificado SSL del wildcard `*.rifax.lat` ya emitió** (`vercel domains verify "*.rifax.lat" --scope rifa7`, o probar `https://<slug>.rifax.lat` directo) — ver addendum de Fase 13. Es lo único que falta para que un tenant real ande en producción.
-2. **Fase 15** (a definir con el usuario): con el dominio del todo andando, probablemente probar el flujo completo de punta a punta contra producción real (crear tenant, comprar boletos, etc.) por primera vez con subdominios reales.
+2. **Fase 16** (a definir con el usuario): con el dominio del todo andando, probablemente probar el flujo completo de punta a punta contra producción real (crear tenant, comprar boletos, etc.) por primera vez con subdominios reales.
 3. **Wompi**: bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard — ver Fase 8. Ojo: la URL del webhook depende del dominio real ahora (`https://<slug>.rifax.lat/api/webhooks/wompi`).
 4. **Resend**: bloqueado en que el usuario cree la cuenta y pase la API key — ver Fase 9.
 5. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
@@ -412,10 +428,12 @@ Pasos hechos para dejarlas realmente operativas:
 8. Si se agrega contenido nuevo a `packages/ui` que use clases Tailwind con los tokens de `theme.css` (`bg-brand-*`, `bg-sidebar`, etc.), recordar que el `@source` en cada `globals.css` ya cubre todo `packages/ui/src` — no hace falta tocar nada más, pero si se crea un OTRO package compartido con estilos, va a necesitar su propio `@source` (ver gotcha de Fase 12).
 9. **Si se toca `next.config.ts` de `admin`/`vendedores`/`clientes` de nuevo, recordar el patrón de Multi Zones de Fase 13**: `basePath` en las zonas no-raíz, cualquier `redirectTo`/`pages.signIn` de Auth.js y cualquier `signIn()`/`signOut()` client-side necesitan la ruta completa a mano (no heredan `basePath` solos, a diferencia de `next/navigation`) — y cualquier env var nueva que se lea DENTRO de un `next.config.ts` tiene que declararse en `turbo.json` o llega `undefined` en el build de Vercel.
 10. **Si se agrega otro dominio con wildcard en el futuro** (otro cliente, otro ambiente): después de `vercel domains add "*.dominio"`, correr `vercel domains verify` y fijarse si pide `CNAME` en vez de `A` — ver addendum de Fase 13, no asumir que el `A` sugerido por default alcanza para un wildcard.
+11. **`Card` de `@rifaxapp/ui` acepta un prop `as`** (default `"div"`) para cuando haga falta un tag semánticamente distinto (ej. `<section>`) — ver el gotcha de Fase 15 antes de asumir que siempre es un `<div>` en un selector de test nuevo.
+12. **Borrar y recrear un tenant desde superadmin invalida cualquier credencial de prueba generada a mano** (Sede/Vendedor/Cliente incluidos) — ver la nota de Fase 15. Si se necesitan credenciales de prueba de nuevo para "mirifa", generarlas y verificarlas contra la DB recién al final, no antes de que el usuario pueda haber tocado `/tenants`.
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 14 cerrada de punta a punta: landing page pública en `rifax.lat` (sin subdominio), con un fix de matcher del proxy necesario para que un visitante sin sesión llegue a verla. Contenido real (no aspiracional) sobre lo que la app ya hace, CTA simple por mailto como pidió el usuario. También se resolvió el pendiente de DNS que había quedado abierto de la Fase 13: el wildcard necesitaba un `CNAME`, no un `A` — el usuario ya lo cambió, el DNS propagó, solo falta que Vercel termine de emitir el certificado del comodín. 124 tests, lint, type-check, build (6/6) y los 6 e2e del repo — todos verdes. Verificado también visualmente (Browser tool, mobile y desktop) y con `curl` contra los 3 casos de resolución de host. Nada quedó a medias sin commitear. `https://rifax.lat` ya muestra la landing en producción real ahora mismo.
+Fase 15 cerrada de punta a punta: el sistema de diseño de Fase 12 (`PageHeader`/`Card`/`Stat`/`StatGrid`/`Badge`/`Button` de `@rifaxapp/ui`) ahora también cubre el contenido de ~20 páginas de `admin`/`vendedores`/`clientes` — antes solo cubría login/sidebar. Un gotcha real encontrado por el e2e (no adivinado): `Card` renderiza `<div>` por default, y `reportes/page.tsx` necesitaba `<section>` para el selector de un test existente — se le agregó a `Card` un prop `as` en vez de tocar el test a algo menos preciso. También quedó documentado, aparte del rediseño, un hallazgo real sobre cómo recrear un tenant desde superadmin invalida credenciales de prueba generadas a mano (confirmado con `vercel logs`, no adivinado). 124 tests, lint, type-check, build (6/6) y los 6 e2e del repo — todos verdes (2 fallos en el camino, uno de flakiness de entorno ya documentada, el otro el gotcha del `<section>`, ambos resueltos). Verificado también visualmente con el Browser tool contra datos reales del tenant "mirifa". Nada quedó a medias sin commitear.
 
 ## Notas técnicas de arquitectura para quien retome
 

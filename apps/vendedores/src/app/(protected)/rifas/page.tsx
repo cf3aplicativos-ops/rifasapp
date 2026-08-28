@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
+import { Card } from "@rifaxapp/ui/card";
+import { PageHeader } from "@rifaxapp/ui/page-header";
 import { requireSession } from "@/lib/require-session";
 
 export default async function RifasPage() {
@@ -11,21 +13,23 @@ export default async function RifasPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Rifas activas</h1>
-      <ul className="space-y-2">
+    <div className="space-y-6">
+      <PageHeader title="Rifas activas" />
+      <div className="space-y-3">
         {rifas.map((rifa) => (
-          <li key={rifa.id} className="rounded border border-gray-200 p-4 dark:border-gray-800">
+          <Card key={rifa.id}>
             <Link href={`/rifas/${rifa.id}`} className="font-medium underline">
               {rifa.nombre}
             </Link>
-            <p className="text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               ${rifa.precioBoleto.toString()} por boleto · {rifa.cantidadBoletos} boletos
             </p>
-          </li>
+          </Card>
         ))}
-        {rifas.length === 0 && <p className="text-gray-500">No hay rifas activas ahora mismo.</p>}
-      </ul>
+        {rifas.length === 0 && (
+          <p className="text-gray-500 dark:text-gray-400">No hay rifas activas ahora mismo.</p>
+        )}
+      </div>
     </div>
   );
 }

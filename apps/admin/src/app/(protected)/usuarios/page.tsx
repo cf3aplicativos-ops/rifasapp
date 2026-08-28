@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
+import { Card } from "@rifaxapp/ui/card";
+import { PageHeader } from "@rifaxapp/ui/page-header";
 import { requireSession } from "@/lib/require-session";
 import { CreateUsuarioForm } from "./create-usuario-form";
 
@@ -17,39 +19,48 @@ export default async function UsuariosPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Usuarios</h1>
+      <PageHeader title="Usuarios" />
 
       {sedes.length === 0 ? (
-        <p className="text-sm text-gray-500">Creá al menos una sede antes de invitar usuarios.</p>
+        <Card>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Creá al menos una sede antes de invitar usuarios.
+          </p>
+        </Card>
       ) : (
         <CreateUsuarioForm sedes={sedes} />
       )}
 
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 dark:border-gray-800">
-            <th className="py-2">Email</th>
-            <th className="py-2">Rol</th>
-            <th className="py-2">Sede</th>
-          </tr>
-        </thead>
-        <tbody>
-          {usuarios.map((usuario) => (
-            <tr key={usuario.id} className="border-b border-gray-100 dark:border-gray-900">
-              <td className="py-2 font-mono">{usuario.email}</td>
-              <td className="py-2">{usuario.rol}</td>
-              <td className="py-2">{usuario.sede?.nombre ?? "—"}</td>
+      <Card className="p-0">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 dark:border-gray-800">
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Email</th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Rol</th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Sede</th>
             </tr>
-          ))}
-          {usuarios.length === 0 && (
-            <tr>
-              <td colSpan={3} className="py-6 text-center text-gray-500">
-                Todavía no hay usuarios además del admin.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {usuarios.map((usuario) => (
+              <tr
+                key={usuario.id}
+                className="border-b border-gray-100 last:border-0 dark:border-gray-900"
+              >
+                <td className="px-6 py-3 font-mono">{usuario.email}</td>
+                <td className="px-6 py-3">{usuario.rol}</td>
+                <td className="px-6 py-3">{usuario.sede?.nombre ?? "—"}</td>
+              </tr>
+            ))}
+            {usuarios.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-6 py-6 text-center text-gray-500 dark:text-gray-400">
+                  Todavía no hay usuarios además del admin.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
     </div>
   );
 }

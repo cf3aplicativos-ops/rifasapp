@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Button } from "@rifaxapp/ui/button";
+import { formInputClassName } from "@rifaxapp/ui/form-input";
 import { registrarVenta } from "../actions";
 
 type BoletoInfo = { id: string; numero: number; estado: string };
@@ -74,18 +76,14 @@ export function VentaForm({ rifaId, boletos }: { rifaId: string; boletos: Boleto
             id="compradorNombre"
             name="compradorNombre"
             required
-            className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            className={formInputClassName}
           />
         </div>
         <div className="space-y-1">
           <label htmlFor="compradorTelefono" className="text-sm font-medium">
             Teléfono (opcional)
           </label>
-          <input
-            id="compradorTelefono"
-            name="compradorTelefono"
-            className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
-          />
+          <input id="compradorTelefono" name="compradorTelefono" className={formInputClassName} />
         </div>
         <div className="space-y-1">
           <label htmlFor="metodoPago" className="text-sm font-medium">
@@ -96,20 +94,16 @@ export function VentaForm({ rifaId, boletos }: { rifaId: string; boletos: Boleto
             name="metodoPago"
             required
             defaultValue="EFECTIVO"
-            className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            className={formInputClassName}
           >
             <option value="EFECTIVO">Efectivo</option>
             <option value="TRANSFERENCIA">Transferencia</option>
             <option value="OTRO">Otro</option>
           </select>
         </div>
-        <button
-          type="submit"
-          disabled={isPending || seleccionados.length === 0}
-          className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900"
-        >
+        <Button type="submit" disabled={isPending || seleccionados.length === 0}>
           {isPending ? "Registrando…" : "Registrar venta"}
-        </button>
+        </Button>
       </div>
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
     </form>

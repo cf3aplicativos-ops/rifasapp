@@ -1,6 +1,9 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Button } from "@rifaxapp/ui/button";
+import { Card } from "@rifaxapp/ui/card";
+import { formInputClassName } from "@rifaxapp/ui/form-input";
 import { reservarBoletos, iniciarPagoWompi } from "../actions";
 
 type BoletoInfo = { id: string; numero: number; estado: string };
@@ -70,18 +73,16 @@ export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: Bole
         Seleccionados: {seleccionados.length > 0 ? seleccionados.slice().sort((a, b) => a - b).join(", ") : "ninguno"}
       </p>
 
-      <form action={wompiFormAction} className="space-y-2 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-        {hiddenInputs}
-        <p className="text-sm font-medium">Pagar online (tarjeta, PSE, Nequi)</p>
-        <button
-          type="submit"
-          disabled={isWompiPending || seleccionados.length === 0}
-          className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900"
-        >
-          {isWompiPending ? "Redirigiendo…" : "Pagar ahora con Wompi"}
-        </button>
-        {wompiState?.error && <p className="text-sm text-red-600">{wompiState.error}</p>}
-      </form>
+      <Card>
+        <form action={wompiFormAction} className="space-y-2">
+          {hiddenInputs}
+          <p className="text-sm font-medium">Pagar online (tarjeta, PSE, Nequi)</p>
+          <Button type="submit" disabled={isWompiPending || seleccionados.length === 0}>
+            {isWompiPending ? "Redirigiendo…" : "Pagar ahora con Wompi"}
+          </Button>
+          {wompiState?.error && <p className="text-sm text-red-600">{wompiState.error}</p>}
+        </form>
+      </Card>
 
       <form action={formAction} className="space-y-2">
         <p className="text-sm font-medium">O reservá y pagá por tu cuenta</p>
@@ -96,22 +97,18 @@ export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: Bole
               name="metodoPago"
               required
               defaultValue="TRANSFERENCIA"
-              className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+              className={formInputClassName}
             >
               <option value="TRANSFERENCIA">Transferencia</option>
               <option value="EFECTIVO">Efectivo</option>
               <option value="OTRO">Otro</option>
             </select>
           </div>
-          <button
-            type="submit"
-            disabled={isPending || seleccionados.length === 0}
-            className="rounded border border-gray-900 px-4 py-2 disabled:opacity-50 dark:border-gray-100"
-          >
+          <Button type="submit" variant="secondary" disabled={isPending || seleccionados.length === 0}>
             {isPending ? "Reservando…" : "Reservar boletos"}
-          </button>
+          </Button>
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           No hay cobro automático: tu reserva queda pendiente hasta que confirmemos el pago.
         </p>
         {state?.error && <p className="text-sm text-red-600">{state.error}</p>}

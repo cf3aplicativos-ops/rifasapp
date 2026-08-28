@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { expirarVentasVencidas } from "@rifaxapp/db-tenant";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
+import { Badge, type BadgeTone } from "@rifaxapp/ui/badge";
+import { PageHeader } from "@rifaxapp/ui/page-header";
+import { Stat, StatGrid } from "@rifaxapp/ui/stat";
 import { requireSession } from "@/lib/require-session";
 import { CerrarRifaForm } from "./cerrar-rifa-form";
 
@@ -10,6 +13,13 @@ const ESTADO_LABEL: Record<string, string> = {
   ACTIVA: "Activa",
   CERRADA: "Cerrada",
   CANCELADA: "Cancelada",
+};
+
+const ESTADO_TONE: Record<string, BadgeTone> = {
+  BORRADOR: "yellow",
+  ACTIVA: "green",
+  CERRADA: "gray",
+  CANCELADA: "red",
 };
 
 export default async function RifaDetailPage({
@@ -46,37 +56,19 @@ export default async function RifaDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{rifa.nombre}</h1>
-        {rifa.descripcion && <p className="text-gray-600 dark:text-gray-400">{rifa.descripcion}</p>}
-      </div>
+      <PageHeader
+        title={rifa.nombre}
+        description={rifa.descripcion}
+        actions={<Badge tone={ESTADO_TONE[rifa.estado] ?? "gray"}>{ESTADO_LABEL[rifa.estado] ?? rifa.estado}</Badge>}
+      />
 
-      <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-        <div>
-          <dt className="text-gray-500">Estado</dt>
-          <dd>{ESTADO_LABEL[rifa.estado] ?? rifa.estado}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Precio boleto</dt>
-          <dd>${rifa.precioBoleto.toString()}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Disponibles</dt>
-          <dd>{disponibles}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Reservados</dt>
-          <dd>{reservados}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Vendidos</dt>
-          <dd>{vendidos}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Total</dt>
-          <dd>{rifa.cantidadBoletos}</dd>
-        </div>
-      </dl>
+      <StatGrid>
+        <Stat label="Precio boleto" value={`$${rifa.precioBoleto.toString()}`} />
+        <Stat label="Disponibles" value={disponibles} />
+        <Stat label="Reservados" value={reservados} />
+        <Stat label="Vendidos" value={vendidos} />
+        <Stat label="Total" value={rifa.cantidadBoletos} />
+      </StatGrid>
 
       <Link href={`/rifas/${rifa.id}/ventas`} className="inline-block text-sm underline">
         Ver ventas

@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
+import { Badge, type BadgeTone } from "@rifaxapp/ui/badge";
+import { Card } from "@rifaxapp/ui/card";
+import { PageHeader } from "@rifaxapp/ui/page-header";
 import { requireSession } from "@/lib/require-session";
 import { CreateRifaForm } from "./create-rifa-form";
 import { RifaEstadoButtons } from "./rifa-estado-buttons";
@@ -10,6 +13,13 @@ const ESTADO_LABEL: Record<string, string> = {
   ACTIVA: "Activa",
   CERRADA: "Cerrada",
   CANCELADA: "Cancelada",
+};
+
+const ESTADO_TONE: Record<string, BadgeTone> = {
+  BORRADOR: "yellow",
+  ACTIVA: "green",
+  CERRADA: "gray",
+  CANCELADA: "red",
 };
 
 export default async function RifasPage() {
@@ -23,45 +33,54 @@ export default async function RifasPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Rifas</h1>
+      <PageHeader title="Rifas" />
 
       <CreateRifaForm />
 
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 dark:border-gray-800">
-            <th className="py-2">Nombre</th>
-            <th className="py-2">Precio</th>
-            <th className="py-2">Boletos</th>
-            <th className="py-2">Estado</th>
-            <th className="py-2">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rifas.map((rifa) => (
-            <tr key={rifa.id} className="border-b border-gray-100 dark:border-gray-900">
-              <td className="py-2">
-                <Link href={`/rifas/${rifa.id}`} className="underline">
-                  {rifa.nombre}
-                </Link>
-              </td>
-              <td className="py-2">${rifa.precioBoleto.toString()}</td>
-              <td className="py-2">{rifa.cantidadBoletos}</td>
-              <td className="py-2">{ESTADO_LABEL[rifa.estado] ?? rifa.estado}</td>
-              <td className="py-2">
-                <RifaEstadoButtons id={rifa.id} estado={rifa.estado} />
-              </td>
+      <Card className="p-0">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 dark:border-gray-800">
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Nombre</th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Precio</th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Boletos</th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Estado</th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Acciones</th>
             </tr>
-          ))}
-          {rifas.length === 0 && (
-            <tr>
-              <td colSpan={5} className="py-6 text-center text-gray-500">
-                Todavía no hay rifas.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rifas.map((rifa) => (
+              <tr
+                key={rifa.id}
+                className="border-b border-gray-100 last:border-0 dark:border-gray-900"
+              >
+                <td className="px-6 py-3">
+                  <Link href={`/rifas/${rifa.id}`} className="underline">
+                    {rifa.nombre}
+                  </Link>
+                </td>
+                <td className="px-6 py-3">${rifa.precioBoleto.toString()}</td>
+                <td className="px-6 py-3">{rifa.cantidadBoletos}</td>
+                <td className="px-6 py-3">
+                  <Badge tone={ESTADO_TONE[rifa.estado] ?? "gray"}>
+                    {ESTADO_LABEL[rifa.estado] ?? rifa.estado}
+                  </Badge>
+                </td>
+                <td className="px-6 py-3">
+                  <RifaEstadoButtons id={rifa.id} estado={rifa.estado} />
+                </td>
+              </tr>
+            ))}
+            {rifas.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-6 py-6 text-center text-gray-500 dark:text-gray-400">
+                  Todavía no hay rifas.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { expirarVentasVencidas } from "@rifaxapp/db-tenant";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
+import { PageHeader } from "@rifaxapp/ui/page-header";
 import { requireSession } from "@/lib/require-session";
 import { VentaForm } from "./venta-form";
 
@@ -32,10 +33,7 @@ export default async function RifaVendedorPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{rifa.nombre}</h1>
-        <p className="text-sm text-gray-500">${rifa.precioBoleto.toString()} por boleto</p>
-      </div>
+      <PageHeader title={rifa.nombre} description={`$${rifa.precioBoleto.toString()} por boleto`} />
       <VentaForm rifaId={rifa.id} boletos={boletos} />
     </div>
   );
