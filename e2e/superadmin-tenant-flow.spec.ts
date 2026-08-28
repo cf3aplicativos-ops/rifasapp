@@ -13,7 +13,11 @@ const TENANTS_HOST_PGPASSWORD = process.env.TENANTS_HOST_PGPASSWORD;
 
 test.describe("superadmin: flujo de creación de tenant", () => {
   test.skip(
-    !EMAIL || !PASSWORD || !TENANTS_HOST_PGHOST || !TENANTS_HOST_PGUSER || !TENANTS_HOST_PGPASSWORD,
+    !EMAIL ||
+      !PASSWORD ||
+      !TENANTS_HOST_PGHOST ||
+      !TENANTS_HOST_PGUSER ||
+      !TENANTS_HOST_PGPASSWORD,
     "Definí SUPERADMIN_SEED_EMAIL, SUPERADMIN_SEED_PASSWORD y TENANTS_HOST_PGHOST/PGUSER/PGPASSWORD para correr este spec",
   );
 
@@ -47,16 +51,23 @@ test.describe("superadmin: flujo de creación de tenant", () => {
     });
     await tenantDb.connect();
     try {
-      const result = await tenantDb.query('SELECT email, rol FROM "Usuario" WHERE email = $1', [adminEmail]);
+      const result = await tenantDb.query(
+        'SELECT email, rol FROM "Usuario" WHERE email = $1',
+        [adminEmail],
+      );
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].rol).toBe("TENANT_ADMIN");
     } finally {
       await tenantDb.end();
     }
 
-    page.once("dialog", (dialog) => dialog.accept());
     await row.getByRole("button", { name: "Borrar" }).click();
+    await row.getByRole("checkbox").check();
+    await row.locator("#confirmSlug").fill(slug);
+    await row.getByRole("button", { name: "Borrar definitivamente" }).click();
 
-    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(0);
+    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(
+      0,
+    );
   });
 });

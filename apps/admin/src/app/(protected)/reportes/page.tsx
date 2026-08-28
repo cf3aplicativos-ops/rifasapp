@@ -56,9 +56,15 @@ export default async function ReportesPage() {
   }
 
   // rifaId -> { recaudado, porVendedor: Map<key, VendedorBucket> }
-  const resumenPorRifa = new Map<string, { recaudado: number; porVendedor: Map<string, VendedorBucket> }>();
+  const resumenPorRifa = new Map<
+    string,
+    { recaudado: number; porVendedor: Map<string, VendedorBucket> }
+  >();
   for (const venta of ventasPagadas) {
-    const resumen = resumenPorRifa.get(venta.rifaId) ?? { recaudado: 0, porVendedor: new Map() };
+    const resumen = resumenPorRifa.get(venta.rifaId) ?? {
+      recaudado: 0,
+      porVendedor: new Map(),
+    };
     const monto = Number(venta.montoTotal);
     resumen.recaudado += monto;
 
@@ -80,20 +86,36 @@ export default async function ReportesPage() {
     resumenPorRifa.set(venta.rifaId, resumen);
   }
 
-  const recaudadoTotal = ventasPagadas.reduce((acc, v) => acc + Number(v.montoTotal), 0);
-  const boletosVendidosTotal = ventasPagadas.reduce((acc, v) => acc + v.boletos.length, 0);
+  const recaudadoTotal = ventasPagadas.reduce(
+    (acc, v) => acc + Number(v.montoTotal),
+    0,
+  );
+  const boletosVendidosTotal = ventasPagadas.reduce(
+    (acc, v) => acc + v.boletos.length,
+    0,
+  );
 
   return (
     <div className="space-y-8">
       <div className="space-y-4">
         <PageHeader title="Reportes" />
         <StatGrid>
-          <Stat label="Recaudado (todas las rifas)" value={`$${recaudadoTotal.toFixed(2)}`} />
-          <Stat label="Boletos vendidos (todas las rifas)" value={boletosVendidosTotal} />
+          <Stat
+            label="Recaudado (todas las rifas)"
+            value={`$${recaudadoTotal.toFixed(2)}`}
+          />
+          <Stat
+            label="Boletos vendidos (todas las rifas)"
+            value={boletosVendidosTotal}
+          />
         </StatGrid>
       </div>
 
-      {rifas.length === 0 && <p className="text-gray-500 dark:text-gray-400">Todavía no hay rifas.</p>}
+      {rifas.length === 0 && (
+        <p className="text-gray-500 dark:text-gray-400">
+          Todavía no hay rifas.
+        </p>
+      )}
 
       {rifas.map((rifa) => {
         const conteos = conteosPorRifa.get(rifa.id) ?? {};
@@ -112,7 +134,10 @@ export default async function ReportesPage() {
             </div>
 
             <StatGrid>
-              <Stat label="Recaudado" value={`$${(resumen?.recaudado ?? 0).toFixed(2)}`} />
+              <Stat
+                label="Recaudado"
+                value={`$${(resumen?.recaudado ?? 0).toFixed(2)}`}
+              />
               <Stat label="Disponibles" value={disponibles} />
               <Stat label="Reservados" value={reservados} />
               <Stat label="Vendidos" value={vendidos} />
@@ -122,15 +147,26 @@ export default async function ReportesPage() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-800">
-                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">Vendedor</th>
-                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">Ventas</th>
-                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">Boletos</th>
-                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">Monto</th>
+                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">
+                      Vendedor
+                    </th>
+                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">
+                      Ventas
+                    </th>
+                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">
+                      Boletos
+                    </th>
+                    <th className="py-1 font-medium text-gray-500 dark:text-gray-400">
+                      Monto
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {Array.from(resumen.porVendedor.values()).map((bucket) => (
-                    <tr key={bucket.label} className="border-b border-gray-100 last:border-0 dark:border-gray-900">
+                    <tr
+                      key={bucket.label}
+                      className="border-b border-gray-100 last:border-0 dark:border-gray-900"
+                    >
                       <td className="py-2">{bucket.label}</td>
                       <td className="py-2">{bucket.cantidadVentas}</td>
                       <td className="py-2">{bucket.boletosVendidos}</td>

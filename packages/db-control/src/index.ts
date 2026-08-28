@@ -1,6 +1,11 @@
 export { getControlPrismaClient } from "./client";
 export { encryptConnectionString, decryptConnectionString } from "./crypto";
 export { hashPassword, verifyPassword } from "./password";
-export { getPlatformConfig, setPlatformBaseDomain, setLoginBackgroundUrl } from "./platform-config";
+export {
+  getPlatformConfig,
+  setPlatformBaseDomain,
+  setLoginBackgroundUrl,
+} from "./platform-config";
+export { contarTenantsPorEstado, bucketTenantsPorMes } from "./tenant-metrics";
 export { PrismaClient, TenantEstado } from "@prisma/client";
 export type { Tenant, SuperAdmin, PlatformConfig } from "@prisma/client";

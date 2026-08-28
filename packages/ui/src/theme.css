@@ -33,4 +33,38 @@
   --color-sidebar-foreground: #e5e5e5;
 
   --radius-card: 0.75rem;
+
+  /*
+   * Fase 18 — animación compartida (Reveal, AnimatedNumber, skeletons de
+   * charts). `--ease-standard` es la curva de "material standard" (entra
+   * rápido, sale lento) — se usa en todas las transiciones nuevas para que
+   * se sientan consistentes entre sí. Registrar `--animate-*` acá (no solo
+   * el `@keyframes`) es lo que hace que Tailwind v4 genere las utilities
+   * `animate-fade-up`/`animate-shimmer` automáticamente — ver la sección de
+   * "custom animations" de sus docs, mismo mecanismo que ya usan sus
+   * `--animate-spin`/`--animate-ping` default.
+   */
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-up: fade-up 0.6s var(--ease-standard) both;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }

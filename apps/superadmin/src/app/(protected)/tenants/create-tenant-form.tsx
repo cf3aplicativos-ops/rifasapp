@@ -6,7 +6,10 @@ import { formInputClassName } from "@rifaxapp/ui/form-input";
 import { createTenant } from "./actions";
 
 export function CreateTenantForm() {
-  const [state, formAction, isPending] = useActionState(createTenant, undefined);
+  const [state, formAction, isPending] = useActionState(
+    createTenant,
+    undefined,
+  );
 
   return (
     <div className="space-y-3">
@@ -59,7 +62,9 @@ export function CreateTenantForm() {
         <Button type="submit" disabled={isPending}>
           {isPending ? "Creando…" : "Crear tenant"}
         </Button>
-        {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
+        {state?.error && (
+          <p className="w-full text-sm text-red-600">{state.error}</p>
+        )}
       </form>
 
       {state?.success && (

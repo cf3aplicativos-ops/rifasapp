@@ -1,11 +1,12 @@
+import { Building2, Globe, Palette } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/require-superadmin";
 import { signOut } from "@/auth";
 import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
 
 const NAV_ITEMS = [
-  { href: "/tenants", label: "Tenants" },
-  { href: "/configuracion", label: "Dominio" },
-  { href: "/apariencia", label: "Apariencia" },
+  { href: "/tenants", label: "Tenants", icon: <Building2 /> },
+  { href: "/configuracion", label: "Dominio", icon: <Globe /> },
+  { href: "/apariencia", label: "Apariencia", icon: <Palette /> },
 ];
 
 export default async function ProtectedLayout({

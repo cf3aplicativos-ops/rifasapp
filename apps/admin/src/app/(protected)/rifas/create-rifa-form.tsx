@@ -68,7 +68,9 @@ export function CreateRifaForm() {
         <Button type="submit" disabled={isPending}>
           {isPending ? "Creando…" : "Crear rifa"}
         </Button>
-        {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
+        {state?.error && (
+          <p className="w-full text-sm text-red-600">{state.error}</p>
+        )}
       </form>
     </Card>
   );

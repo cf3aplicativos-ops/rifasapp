@@ -6,8 +6,15 @@ import { Card } from "@rifaxapp/ui/card";
 import { formInputClassName } from "@rifaxapp/ui/form-input";
 import { createUsuario } from "./actions";
 
-export function CreateUsuarioForm({ sedes }: { sedes: { id: string; nombre: string }[] }) {
-  const [state, formAction, isPending] = useActionState(createUsuario, undefined);
+export function CreateUsuarioForm({
+  sedes,
+}: {
+  sedes: { id: string; nombre: string }[];
+}) {
+  const [state, formAction, isPending] = useActionState(
+    createUsuario,
+    undefined,
+  );
 
   return (
     <div className="space-y-3">
@@ -39,7 +46,12 @@ export function CreateUsuarioForm({ sedes }: { sedes: { id: string; nombre: stri
             <label htmlFor="sedeId" className="text-sm font-medium">
               Sede
             </label>
-            <select id="sedeId" name="sedeId" required className={formInputClassName}>
+            <select
+              id="sedeId"
+              name="sedeId"
+              required
+              className={formInputClassName}
+            >
               <option value="">— elegir —</option>
               {sedes.map((sede) => (
                 <option key={sede.id} value={sede.id}>
@@ -51,7 +63,9 @@ export function CreateUsuarioForm({ sedes }: { sedes: { id: string; nombre: stri
           <Button type="submit" disabled={isPending}>
             {isPending ? "Invitando…" : "Invitar usuario"}
           </Button>
-          {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
+          {state?.error && (
+            <p className="w-full text-sm text-red-600">{state.error}</p>
+          )}
         </form>
       </Card>
 
@@ -60,8 +74,12 @@ export function CreateUsuarioForm({ sedes }: { sedes: { id: string; nombre: stri
           <p className="font-medium text-green-800 dark:text-green-300">
             Usuario creado. Credenciales (solo se muestran esta vez):
           </p>
-          <p className="mt-1 font-mono text-green-900 dark:text-green-200">Email: {state.success.email}</p>
-          <p className="font-mono text-green-900 dark:text-green-200">Password: {state.success.password}</p>
+          <p className="mt-1 font-mono text-green-900 dark:text-green-200">
+            Email: {state.success.email}
+          </p>
+          <p className="font-mono text-green-900 dark:text-green-200">
+            Password: {state.success.password}
+          </p>
         </div>
       )}
     </div>

@@ -36,7 +36,9 @@ export default async function VentasPage({
   const prisma = await getTenantPrismaClient(session.user.tenantId);
   await expirarVentasVencidas(
     prisma,
-    process.env.RESERVA_TTL_HORAS ? Number(process.env.RESERVA_TTL_HORAS) : undefined,
+    process.env.RESERVA_TTL_HORAS
+      ? Number(process.env.RESERVA_TTL_HORAS)
+      : undefined,
   );
 
   const rifa = await prisma.rifa.findUnique({ where: { id: rifaId } });
@@ -61,13 +63,27 @@ export default async function VentasPage({
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-gray-200 dark:border-gray-800">
-              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Comprador</th>
-              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Boletos</th>
-              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Monto</th>
-              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Método</th>
-              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Canal</th>
-              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Estado</th>
-              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Acciones</th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                Comprador
+              </th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                Boletos
+              </th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                Monto
+              </th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                Método
+              </th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                Canal
+              </th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                Estado
+              </th>
+              <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -76,24 +92,35 @@ export default async function VentasPage({
                 key={venta.id}
                 className="border-b border-gray-100 last:border-0 dark:border-gray-900"
               >
-                <td className="px-6 py-3">{venta.cliente?.email ?? venta.compradorNombre}</td>
-                <td className="px-6 py-3">{venta.boletos.map((b) => `#${b.numero}`).join(", ")}</td>
+                <td className="px-6 py-3">
+                  {venta.cliente?.email ?? venta.compradorNombre}
+                </td>
+                <td className="px-6 py-3">
+                  {venta.boletos.map((b) => `#${b.numero}`).join(", ")}
+                </td>
                 <td className="px-6 py-3">${venta.montoTotal.toString()}</td>
                 <td className="px-6 py-3">{venta.metodoPago}</td>
-                <td className="px-6 py-3">{venta.vendedor ? "Vendedor" : "Autocompra"}</td>
+                <td className="px-6 py-3">
+                  {venta.vendedor ? "Vendedor" : "Autocompra"}
+                </td>
                 <td className="px-6 py-3">
                   <Badge tone={ESTADO_TONE[venta.estado] ?? "gray"}>
                     {ESTADO_LABEL[venta.estado] ?? venta.estado}
                   </Badge>
                 </td>
                 <td className="px-6 py-3">
-                  {venta.estado === "PENDIENTE" && <VentaPagoButtons id={venta.id} />}
+                  {venta.estado === "PENDIENTE" && (
+                    <VentaPagoButtons id={venta.id} />
+                  )}
                 </td>
               </tr>
             ))}
             {ventas.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-6 py-6 text-center text-gray-500 dark:text-gray-400">
+                <td
+                  colSpan={7}
+                  className="px-6 py-6 text-center text-gray-500 dark:text-gray-400"
+                >
                   Todavía no hay ventas.
                 </td>
               </tr>

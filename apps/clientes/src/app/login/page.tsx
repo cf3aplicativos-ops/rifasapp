@@ -41,7 +41,13 @@ export default async function LoginPage({
           <label htmlFor="email" className="text-sm font-medium">
             Email
           </label>
-          <input id="email" name="email" type="email" required className={formInputClassName} />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            className={formInputClassName}
+          />
         </div>
 
         <div className="space-y-1">

@@ -1,12 +1,19 @@
+import {
+  BarChart3,
+  Building2,
+  LayoutDashboard,
+  Ticket,
+  Users,
+} from "lucide-react";
 import { requireSession } from "@/lib/require-session";
 import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
 import { SignOutButton } from "./sign-out-button";
 
 const TENANT_ADMIN_NAV_ITEMS = [
-  { href: "/rifas", label: "Rifas" },
-  { href: "/reportes", label: "Reportes" },
-  { href: "/sedes", label: "Sedes" },
-  { href: "/usuarios", label: "Usuarios" },
+  { href: "/rifas", label: "Rifas", icon: <Ticket /> },
+  { href: "/reportes", label: "Reportes", icon: <BarChart3 /> },
+  { href: "/sedes", label: "Sedes", icon: <Building2 /> },
+  { href: "/usuarios", label: "Usuarios", icon: <Users /> },
 ];
 
 export default async function ProtectedLayout({
@@ -17,7 +24,7 @@ export default async function ProtectedLayout({
   const session = await requireSession();
   const isTenantAdmin = session.user.rol === "TENANT_ADMIN";
   const navItems = [
-    { href: "/dashboard", label: "Dashboard" },
+    { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard /> },
     ...(isTenantAdmin ? TENANT_ADMIN_NAV_ITEMS : []),
   ];
 

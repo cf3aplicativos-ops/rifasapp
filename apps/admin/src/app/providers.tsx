@@ -14,5 +14,7 @@ import { SessionProvider } from "next-auth/react";
  * es la forma soportada por next-auth de indicarle el prefijo correcto.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <SessionProvider basePath="/admin/api/auth">{children}</SessionProvider>;
+  return (
+    <SessionProvider basePath="/admin/api/auth">{children}</SessionProvider>
+  );
 }

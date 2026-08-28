@@ -8,9 +8,21 @@ import { reservarBoletos, iniciarPagoWompi } from "../actions";
 
 type BoletoInfo = { id: string; numero: number; estado: string };
 
-export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: BoletoInfo[] }) {
-  const [state, formAction, isPending] = useActionState(reservarBoletos, undefined);
-  const [wompiState, wompiFormAction, isWompiPending] = useActionState(iniciarPagoWompi, undefined);
+export function ReservaForm({
+  rifaId,
+  boletos,
+}: {
+  rifaId: string;
+  boletos: BoletoInfo[];
+}) {
+  const [state, formAction, isPending] = useActionState(
+    reservarBoletos,
+    undefined,
+  );
+  const [wompiState, wompiFormAction, isWompiPending] = useActionState(
+    iniciarPagoWompi,
+    undefined,
+  );
   const [seleccionados, setSeleccionados] = useState<number[]>([]);
 
   // "Ajustar estado cuando cambia una prop" (react.dev) en vez de un
@@ -29,7 +41,9 @@ export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: Bole
   function toggle(numero: number, estado: string) {
     if (estado !== "DISPONIBLE") return;
     setSeleccionados((prev) =>
-      prev.includes(numero) ? prev.filter((n) => n !== numero) : [...prev, numero],
+      prev.includes(numero)
+        ? prev.filter((n) => n !== numero)
+        : [...prev, numero],
     );
   }
 
@@ -70,17 +84,30 @@ export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: Bole
       </div>
 
       <p className="text-sm">
-        Seleccionados: {seleccionados.length > 0 ? seleccionados.slice().sort((a, b) => a - b).join(", ") : "ninguno"}
+        Seleccionados:{" "}
+        {seleccionados.length > 0
+          ? seleccionados
+              .slice()
+              .sort((a, b) => a - b)
+              .join(", ")
+          : "ninguno"}
       </p>
 
       <Card>
         <form action={wompiFormAction} className="space-y-2">
           {hiddenInputs}
-          <p className="text-sm font-medium">Pagar online (tarjeta, PSE, Nequi)</p>
-          <Button type="submit" disabled={isWompiPending || seleccionados.length === 0}>
+          <p className="text-sm font-medium">
+            Pagar online (tarjeta, PSE, Nequi)
+          </p>
+          <Button
+            type="submit"
+            disabled={isWompiPending || seleccionados.length === 0}
+          >
             {isWompiPending ? "Redirigiendo…" : "Pagar ahora con Wompi"}
           </Button>
-          {wompiState?.error && <p className="text-sm text-red-600">{wompiState.error}</p>}
+          {wompiState?.error && (
+            <p className="text-sm text-red-600">{wompiState.error}</p>
+          )}
         </form>
       </Card>
 
@@ -104,12 +131,17 @@ export function ReservaForm({ rifaId, boletos }: { rifaId: string; boletos: Bole
               <option value="OTRO">Otro</option>
             </select>
           </div>
-          <Button type="submit" variant="secondary" disabled={isPending || seleccionados.length === 0}>
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={isPending || seleccionados.length === 0}
+          >
             {isPending ? "Reservando…" : "Reservar boletos"}
           </Button>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          No hay cobro automático: tu reserva queda pendiente hasta que confirmemos el pago.
+          No hay cobro automático: tu reserva queda pendiente hasta que
+          confirmemos el pago.
         </p>
         {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       </form>

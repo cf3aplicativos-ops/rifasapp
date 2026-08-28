@@ -20,7 +20,12 @@ export function VentaPagoButtons({ id }: { id: string }) {
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("¿Anular esta venta? Los boletos vuelven a estar disponibles.")) return;
+          if (
+            !confirm(
+              "¿Anular esta venta? Los boletos vuelven a estar disponibles.",
+            )
+          )
+            return;
           startTransition(() => anularVenta(id));
         }}
         className="text-sm text-red-600 underline disabled:opacity-50"

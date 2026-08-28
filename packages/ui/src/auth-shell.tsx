@@ -53,8 +53,14 @@ export function AuthShell({
             R
           </span>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">{title}</h1>
-            {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {subtitle}
+              </p>
+            )}
           </div>
         </div>
 

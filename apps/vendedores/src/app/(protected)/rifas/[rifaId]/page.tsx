@@ -19,7 +19,9 @@ export default async function RifaVendedorPage({
   // en realidad ya está libre de nuevo (Fase 6).
   await expirarVentasVencidas(
     prisma,
-    process.env.RESERVA_TTL_HORAS ? Number(process.env.RESERVA_TTL_HORAS) : undefined,
+    process.env.RESERVA_TTL_HORAS
+      ? Number(process.env.RESERVA_TTL_HORAS)
+      : undefined,
   );
 
   const rifa = await prisma.rifa.findUnique({ where: { id: rifaId } });
@@ -33,7 +35,10 @@ export default async function RifaVendedorPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title={rifa.nombre} description={`$${rifa.precioBoleto.toString()} por boleto`} />
+      <PageHeader
+        title={rifa.nombre}
+        description={`$${rifa.precioBoleto.toString()} por boleto`}
+      />
       <VentaForm rifaId={rifa.id} boletos={boletos} />
     </div>
   );

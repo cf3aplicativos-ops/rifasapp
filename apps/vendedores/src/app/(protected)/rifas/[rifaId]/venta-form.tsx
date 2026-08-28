@@ -7,8 +7,17 @@ import { registrarVenta } from "../actions";
 
 type BoletoInfo = { id: string; numero: number; estado: string };
 
-export function VentaForm({ rifaId, boletos }: { rifaId: string; boletos: BoletoInfo[] }) {
-  const [state, formAction, isPending] = useActionState(registrarVenta, undefined);
+export function VentaForm({
+  rifaId,
+  boletos,
+}: {
+  rifaId: string;
+  boletos: BoletoInfo[];
+}) {
+  const [state, formAction, isPending] = useActionState(
+    registrarVenta,
+    undefined,
+  );
   const [seleccionados, setSeleccionados] = useState<number[]>([]);
 
   // "Ajustar estado cuando cambia una prop" (react.dev) en vez de un
@@ -27,7 +36,9 @@ export function VentaForm({ rifaId, boletos }: { rifaId: string; boletos: Boleto
   function toggle(numero: number, estado: string) {
     if (estado !== "DISPONIBLE") return;
     setSeleccionados((prev) =>
-      prev.includes(numero) ? prev.filter((n) => n !== numero) : [...prev, numero],
+      prev.includes(numero)
+        ? prev.filter((n) => n !== numero)
+        : [...prev, numero],
     );
   }
 
@@ -64,7 +75,13 @@ export function VentaForm({ rifaId, boletos }: { rifaId: string; boletos: Boleto
       </div>
 
       <p className="text-sm">
-        Seleccionados: {seleccionados.length > 0 ? seleccionados.slice().sort((a, b) => a - b).join(", ") : "ninguno"}
+        Seleccionados:{" "}
+        {seleccionados.length > 0
+          ? seleccionados
+              .slice()
+              .sort((a, b) => a - b)
+              .join(", ")
+          : "ninguno"}
       </p>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -83,7 +100,11 @@ export function VentaForm({ rifaId, boletos }: { rifaId: string; boletos: Boleto
           <label htmlFor="compradorTelefono" className="text-sm font-medium">
             Teléfono (opcional)
           </label>
-          <input id="compradorTelefono" name="compradorTelefono" className={formInputClassName} />
+          <input
+            id="compradorTelefono"
+            name="compradorTelefono"
+            className={formInputClassName}
+          />
         </div>
         <div className="space-y-1">
           <label htmlFor="metodoPago" className="text-sm font-medium">
@@ -101,7 +122,10 @@ export function VentaForm({ rifaId, boletos }: { rifaId: string; boletos: Boleto
             <option value="OTRO">Otro</option>
           </select>
         </div>
-        <Button type="submit" disabled={isPending || seleccionados.length === 0}>
+        <Button
+          type="submit"
+          disabled={isPending || seleccionados.length === 0}
+        >
           {isPending ? "Registrando…" : "Registrar venta"}
         </Button>
       </div>

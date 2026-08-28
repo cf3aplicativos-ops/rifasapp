@@ -21,7 +21,9 @@ test.describe("pago con Wompi: reserva + redirect a checkout + webhook de confir
     "Definí SUPERADMIN_SEED_EMAIL y SUPERADMIN_SEED_PASSWORD para correr este spec",
   );
 
-  test("cliente paga con Wompi, el webhook confirma, el boleto queda VENDIDO", async ({ page }) => {
+  test("cliente paga con Wompi, el webhook confirma, el boleto queda VENDIDO", async ({
+    page,
+  }) => {
     test.setTimeout(90_000);
 
     // 1. Crear un tenant real vía superadmin (puerto 3000).
@@ -41,8 +43,12 @@ test.describe("pago con Wompi: reserva + redirect a checkout + webhook de confir
     const row = page.getByRole("row", { name: new RegExp(slug) });
     await expect(row).toContainText("ACTIVO", { timeout: 20000 });
 
-    const tenantAdminPasswordText = await page.getByText(/^Password: /).textContent();
-    const tenantAdminPassword = tenantAdminPasswordText!.replace("Password: ", "").trim();
+    const tenantAdminPasswordText = await page
+      .getByText(/^Password: /)
+      .textContent();
+    const tenantAdminPassword = tenantAdminPasswordText!
+      .replace("Password: ", "")
+      .trim();
 
     // 2. TENANT_ADMIN crea y activa una rifa chica ($10 el boleto).
     // Fase 13 (Multi Zones): apps/admin sirve todo bajo basePath "/admin".
@@ -82,7 +88,11 @@ test.describe("pago con Wompi: reserva + redirect a checkout + webhook de confir
     let capturedWompiUrl: string | undefined;
     await page.route("https://checkout.wompi.co/**", async (route) => {
       capturedWompiUrl = route.request().url();
-      await route.fulfill({ status: 200, contentType: "text/html", body: "<html>mock wompi checkout</html>" });
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<html>mock wompi checkout</html>",
+      });
     });
 
     await page.getByRole("button", { name: "1", exact: true }).click();
@@ -91,7 +101,9 @@ test.describe("pago con Wompi: reserva + redirect a checkout + webhook de confir
 
     expect(capturedWompiUrl).toBeDefined();
     const wompiUrl = new URL(capturedWompiUrl!);
-    expect(wompiUrl.origin + wompiUrl.pathname).toBe("https://checkout.wompi.co/p/");
+    expect(wompiUrl.origin + wompiUrl.pathname).toBe(
+      "https://checkout.wompi.co/p/",
+    );
     expect(wompiUrl.searchParams.get("amount-in-cents")).toBe("1000");
     expect(wompiUrl.searchParams.get("currency")).toBe("COP");
     expect(wompiUrl.searchParams.get("signature:integrity")).toBeTruthy();
@@ -110,14 +122,20 @@ test.describe("pago con Wompi: reserva + redirect a checkout + webhook de confir
       .update(transactionId + status + timestamp + WOMPI_EVENTS_SECRET)
       .digest("hex");
 
-    const webhookResponse = await page.request.post(`${clientesBase}/api/webhooks/wompi`, {
-      data: {
-        event: "transaction.updated",
-        data: { transaction: { id: transactionId, status, reference } },
-        signature: { properties: ["transaction.id", "transaction.status"], checksum },
-        timestamp,
+    const webhookResponse = await page.request.post(
+      `${clientesBase}/api/webhooks/wompi`,
+      {
+        data: {
+          event: "transaction.updated",
+          data: { transaction: { id: transactionId, status, reference } },
+          signature: {
+            properties: ["transaction.id", "transaction.status"],
+            checksum,
+          },
+          timestamp,
+        },
       },
-    });
+    );
     expect(webhookResponse.status()).toBe(200);
 
     // 6. /mis-boletos refleja el pago confirmado.
@@ -127,8 +145,12 @@ test.describe("pago con Wompi: reserva + redirect a checkout + webhook de confir
 
     // 7. Cleanup: borrar el tenant desde superadmin (dispara DROP DATABASE).
     await page.goto("http://localhost:3000/tenants");
-    page.once("dialog", (dialog) => dialog.accept());
     await row.getByRole("button", { name: "Borrar" }).click();
-    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(0);
+    await row.getByRole("checkbox").check();
+    await row.locator("#confirmSlug").fill(slug);
+    await row.getByRole("button", { name: "Borrar definitivamente" }).click();
+    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(
+      0,
+    );
   });
 });

@@ -19,7 +19,9 @@ export default async function RifaClientePage({
   // RESERVADO sin confirmar vuelve a aparecer disponible.
   await expirarVentasVencidas(
     prisma,
-    process.env.RESERVA_TTL_HORAS ? Number(process.env.RESERVA_TTL_HORAS) : undefined,
+    process.env.RESERVA_TTL_HORAS
+      ? Number(process.env.RESERVA_TTL_HORAS)
+      : undefined,
   );
 
   const rifa = await prisma.rifa.findUnique({ where: { id: rifaId } });

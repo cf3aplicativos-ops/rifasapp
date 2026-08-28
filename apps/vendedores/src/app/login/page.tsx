@@ -1,7 +1,10 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPlatformConfig } from "@rifaxapp/db-control";
-import { resolveRequestHost, resolveTenantFromHost } from "@rifaxapp/tenant-resolver";
+import {
+  resolveRequestHost,
+  resolveTenantFromHost,
+} from "@rifaxapp/tenant-resolver";
 import { AuthShell } from "@rifaxapp/ui/auth-shell";
 import { Button } from "@rifaxapp/ui/button";
 import { formInputClassName } from "@rifaxapp/ui/form-input";
@@ -43,7 +46,13 @@ export default async function LoginPage({
           <label htmlFor="email" className="text-sm font-medium">
             Email
           </label>
-          <input id="email" name="email" type="email" required className={formInputClassName} />
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            className={formInputClassName}
+          />
         </div>
 
         <div className="space-y-1">

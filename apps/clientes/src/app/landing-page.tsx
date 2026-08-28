@@ -6,7 +6,8 @@ const CONTACT_EMAIL = "jaiguaranosorio@gmail.com";
 const FEATURES = [
   {
     title: "Boletos numerados",
-    description: "Cada rifa tiene sus números fijos, elegibles uno por uno — nada al azar.",
+    description:
+      "Cada rifa tiene sus números fijos, elegibles uno por uno — nada al azar.",
   },
   {
     title: "Venta presencial y online",
@@ -15,11 +16,13 @@ const FEATURES = [
   },
   {
     title: "Cobros con Wompi",
-    description: "El cliente paga online y el boleto se confirma solo, sin que nadie tenga que avisar.",
+    description:
+      "El cliente paga online y el boleto se confirma solo, sin que nadie tenga que avisar.",
   },
   {
     title: "Reportes en tiempo real",
-    description: "Recaudado, boletos vendidos y desglose por vendedor, todo actualizado al instante.",
+    description:
+      "Recaudado, boletos vendidos y desglose por vendedor, todo actualizado al instante.",
   },
 ];
 
@@ -39,7 +42,9 @@ export function LandingPage() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-black shadow-sm">
             R
           </span>
-          <span className="text-lg font-semibold text-gray-900 dark:text-gray-50">Rifaxapp</span>
+          <span className="text-lg font-semibold text-gray-900 dark:text-gray-50">
+            Rifaxapp
+          </span>
         </div>
         {/* Login del superadmin (dueño de la plataforma) — es el único
             acceso posible desde el dominio pelado, sin subdominio de
@@ -58,9 +63,10 @@ export function LandingPage() {
             Organiza y vende tus rifas online
           </h1>
           <p className="mt-6 text-lg text-gray-600 dark:text-gray-400">
-            Rifaxapp es la plataforma para llevar tu rifa de punta a punta: boletos numerados, vendedores
-            en la calle, clientes que se compran solos por internet y los cobros ya confirmados. Todo en
-            un solo lugar.
+            Rifaxapp es la plataforma para llevar tu rifa de punta a punta:
+            boletos numerados, vendedores en la calle, clientes que se compran
+            solos por internet y los cobros ya confirmados. Todo en un solo
+            lugar.
           </p>
           <div className="mt-8">
             <a
@@ -79,8 +85,12 @@ export function LandingPage() {
                 key={feature.title}
                 className="rounded-[var(--radius-card)] border border-gray-200 p-6 dark:border-gray-800"
               >
-                <h2 className="font-semibold text-gray-900 dark:text-gray-50">{feature.title}</h2>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{feature.description}</p>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-50">
+                  {feature.title}
+                </h2>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                  {feature.description}
+                </p>
               </div>
             ))}
           </div>

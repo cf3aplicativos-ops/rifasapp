@@ -34,8 +34,12 @@ test.describe("rifa: flujo completo (admin crea/activa, vendedor y cliente compr
     const row = page.getByRole("row", { name: new RegExp(slug) });
     await expect(row).toContainText("ACTIVO", { timeout: 20000 });
 
-    const tenantAdminPasswordText = await page.getByText(/^Password: /).textContent();
-    const tenantAdminPassword = tenantAdminPasswordText!.replace("Password: ", "").trim();
+    const tenantAdminPasswordText = await page
+      .getByText(/^Password: /)
+      .textContent();
+    const tenantAdminPassword = tenantAdminPasswordText!
+      .replace("Password: ", "")
+      .trim();
 
     // 2. TENANT_ADMIN en admin (puerto 3001): crea sede + invita un VENDEDOR.
     // Fase 13 (Multi Zones): apps/admin sirve todo bajo basePath "/admin".
@@ -57,8 +61,12 @@ test.describe("rifa: flujo completo (admin crea/activa, vendedor y cliente compr
     await page.getByLabel("Rol").selectOption("VENDEDOR");
     await page.getByLabel("Sede").selectOption({ label: "Sede Rifa" });
     await page.getByRole("button", { name: "Invitar usuario" }).click();
-    const vendedorPasswordText = await page.getByText(/^Password: /).textContent();
-    const vendedorPassword = vendedorPasswordText!.replace("Password: ", "").trim();
+    const vendedorPasswordText = await page
+      .getByText(/^Password: /)
+      .textContent();
+    const vendedorPassword = vendedorPasswordText!
+      .replace("Password: ", "")
+      .trim();
 
     // 3. TENANT_ADMIN crea la rifa (BORRADOR) y la activa.
     await page.goto(`${adminBase}/rifas`);
@@ -88,8 +96,12 @@ test.describe("rifa: flujo completo (admin crea/activa, vendedor y cliente compr
     await page.getByRole("button", { name: "1", exact: true }).click();
     await page.getByLabel("Nombre del comprador").fill("Cliente Presencial");
     await page.getByRole("button", { name: "Registrar venta" }).click();
-    await expect(page.getByText("Seleccionados: ninguno")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole("button", { name: "1", exact: true })).toBeDisabled({ timeout: 15000 });
+    await expect(page.getByText("Seleccionados: ninguno")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(
+      page.getByRole("button", { name: "1", exact: true }),
+    ).toBeDisabled({ timeout: 15000 });
 
     // 5. Un CLIENTE nuevo se registra en clientes (puerto 3003) y reserva el
     // boleto #2 (queda PENDIENTE — no hay pasarela, se confirma a mano).
@@ -107,7 +119,9 @@ test.describe("rifa: flujo completo (admin crea/activa, vendedor y cliente compr
 
     await page.getByRole("button", { name: "2", exact: true }).click();
     await page.getByRole("button", { name: "Reservar boletos" }).click();
-    await expect(page.getByText("Seleccionados: ninguno")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("Seleccionados: ninguno")).toBeVisible({
+      timeout: 15000,
+    });
 
     await page.goto(`${clientesBase}/mis-boletos`);
     await expect(page.getByText("#2")).toBeVisible();
@@ -123,28 +137,45 @@ test.describe("rifa: flujo completo (admin crea/activa, vendedor y cliente compr
     // directo hace un substring match, no falla como new RegExp(clienteEmail).
     const ventaPendienteRow = page.getByRole("row", { name: clienteEmail });
     await expect(ventaPendienteRow).toContainText("Pendiente");
-    await ventaPendienteRow.getByRole("button", { name: "Confirmar pago" }).click();
+    await ventaPendienteRow
+      .getByRole("button", { name: "Confirmar pago" })
+      .click();
     await expect(ventaPendienteRow).toContainText("Pagada", { timeout: 15000 });
 
     // 7. TENANT_ADMIN cierra la rifa eligiendo el boleto #1 como ganador.
     await page.goBack();
     await expect(page).toHaveURL(/\/rifas\/[^/]+$/);
     await page.getByLabel("Número de boleto ganador").fill("1");
-    await page.getByRole("button", { name: "Cerrar rifa y elegir ganador" }).click();
-    await expect(page.getByText("Boleto ganador: #1")).toBeVisible({ timeout: 15000 });
+    await page
+      .getByRole("button", { name: "Cerrar rifa y elegir ganador" })
+      .click();
+    await expect(page.getByText("Boleto ganador: #1")).toBeVisible({
+      timeout: 15000,
+    });
 
     // 8. TENANT_ADMIN revisa /reportes: recaudado total y desglose por vendedor.
     await page.goto(`${adminBase}/reportes`);
     await expect(page.getByText("$20.00").first()).toBeVisible();
     const rifaReportSection = page.locator("section", { hasText: "Rifa moto" });
     await expect(rifaReportSection).toContainText("$20.00");
-    await expect(rifaReportSection.getByRole("row", { name: vendedorEmail })).toContainText("$10.00");
-    await expect(rifaReportSection.getByRole("row", { name: "Autocompra" })).toContainText("$10.00");
+    await expect(
+      rifaReportSection.getByRole("row", { name: vendedorEmail }),
+    ).toContainText("$10.00");
+    await expect(
+      rifaReportSection.getByRole("row", { name: "Autocompra" }),
+    ).toContainText("$10.00");
 
     // 9. Cleanup: borrar el tenant desde superadmin (dispara DROP DATABASE).
+    // Fase 17: el borrado ya no es un solo `confirm()` — abre un <dialog>
+    // que exige tildar el checkbox y tipear el slug exacto antes de
+    // habilitar "Borrar definitivamente".
     await page.goto("http://localhost:3000/tenants");
-    page.once("dialog", (dialog) => dialog.accept());
     await row.getByRole("button", { name: "Borrar" }).click();
-    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(0);
+    await row.getByRole("checkbox").check();
+    await row.locator("#confirmSlug").fill(slug);
+    await row.getByRole("button", { name: "Borrar definitivamente" }).click();
+    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(
+      0,
+    );
   });
 });

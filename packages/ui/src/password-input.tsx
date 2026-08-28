@@ -15,6 +15,17 @@ import { formInputClassName } from "./form-input";
  * ninguna) — un ojo cuando está oculta la contraseña, un ojo tachado cuando
  * está visible. El botón es `type="button"` a propósito para no disparar el
  * submit del form que lo envuelve.
+ *
+ * Gotcha real, encontrado en Fase 18 corriendo los e2e con credenciales
+ * reales por primera vez desde que existe este componente (Fase 16): el
+ * `aria-label` decía "Mostrar/Ocultar contraseña" — Playwright's
+ * `getByLabel("Contraseña")` matchea por substring case-insensitive, así
+ * que ese botón también matcheaba esa query (además del `<input>` real),
+ * rompiendo cualquier `page.getByLabel("Contraseña").fill(...)` con un
+ * "strict mode violation: resolved to 2 elements". Se cambió a "clave" en
+ * vez de "contraseña" en el label del botón — evita la colisión de
+ * substring sin perder claridad (está pegado al campo que ya dice
+ * "Contraseña").
  */
 export function PasswordInput({
   className,
@@ -32,7 +43,7 @@ export function PasswordInput({
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        aria-label={visible ? "Ocultar clave" : "Mostrar clave"}
         className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
       >
         {visible ? (
@@ -66,7 +77,11 @@ export function PasswordInput({
               strokeLinejoin="round"
               d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
             />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
           </svg>
         )}
       </button>

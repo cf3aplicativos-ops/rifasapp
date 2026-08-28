@@ -8,5 +8,9 @@ import { SessionProvider } from "next-auth/react";
  * de Next.js solos, hace falta indicárselo acá.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <SessionProvider basePath="/vendedores/api/auth">{children}</SessionProvider>;
+  return (
+    <SessionProvider basePath="/vendedores/api/auth">
+      {children}
+    </SessionProvider>
+  );
 }

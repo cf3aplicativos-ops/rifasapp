@@ -1,6 +1,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { extractSlugFromHost, resolveTenantFromHost } from "@rifaxapp/tenant-resolver";
+import {
+  extractSlugFromHost,
+  resolveTenantFromHost,
+} from "@rifaxapp/tenant-resolver";
 import { LandingPage } from "./landing-page";
 
 // Mismo motivo que login/registro (Fase 3): resuelve por Host en cada

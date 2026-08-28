@@ -14,6 +14,7 @@
     "@rifaxapp/tenant-resolver": "^0.0.0",
     "@rifaxapp/ui": "^0.0.0",
     "@vercel/blob": "^2.8.0",
+    "lucide-react": "^1.35.0",
     "next": "16.3.3",
     "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.0",

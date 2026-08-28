@@ -3,7 +3,13 @@
 import { useTransition } from "react";
 import { activarRifa, cancelarRifa } from "./actions";
 
-export function RifaEstadoButtons({ id, estado }: { id: string; estado: string }) {
+export function RifaEstadoButtons({
+  id,
+  estado,
+}: {
+  id: string;
+  estado: string;
+}) {
   const [isPending, startTransition] = useTransition();
 
   if (estado === "BORRADOR") {
@@ -38,7 +44,12 @@ export function RifaEstadoButtons({ id, estado }: { id: string; estado: string }
         type="button"
         disabled={isPending}
         onClick={() => {
-          if (!confirm("¿Cancelar esta rifa? Los boletos vendidos quedan como están.")) return;
+          if (
+            !confirm(
+              "¿Cancelar esta rifa? Los boletos vendidos quedan como están.",
+            )
+          )
+            return;
           startTransition(() => cancelarRifa(id));
         }}
         className="text-sm text-red-600 underline disabled:opacity-50"

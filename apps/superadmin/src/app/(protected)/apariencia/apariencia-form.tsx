@@ -6,8 +6,14 @@ import { formInputClassName } from "@rifaxapp/ui/form-input";
 import { guardarFondoUrl, quitarFondo, subirFondoArchivo } from "./actions";
 
 export function AparienciaForm({ currentUrl }: { currentUrl: string | null }) {
-  const [urlState, urlFormAction, isUrlPending] = useActionState(guardarFondoUrl, undefined);
-  const [fileState, fileFormAction, isFilePending] = useActionState(subirFondoArchivo, undefined);
+  const [urlState, urlFormAction, isUrlPending] = useActionState(
+    guardarFondoUrl,
+    undefined,
+  );
+  const [fileState, fileFormAction, isFilePending] = useActionState(
+    subirFondoArchivo,
+    undefined,
+  );
   const fileFormRef = useRef<HTMLFormElement>(null);
 
   return (
@@ -17,7 +23,11 @@ export function AparienciaForm({ currentUrl }: { currentUrl: string | null }) {
           <p className="text-sm font-medium">Imagen actual</p>
           <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
             {/* eslint-disable-next-line @next/next/no-img-element -- URL dinámica de origen externo o de Blob, no vale la pena el pipeline de next/image para un preview de admin */}
-            <img src={currentUrl} alt="Fondo del login" className="h-48 w-full object-cover" />
+            <img
+              src={currentUrl}
+              alt="Fondo del login"
+              className="h-48 w-full object-cover"
+            />
           </div>
           <form action={quitarFondo}>
             <Button type="submit" variant="secondary">
@@ -27,7 +37,10 @@ export function AparienciaForm({ currentUrl }: { currentUrl: string | null }) {
         </div>
       )}
 
-      <form action={urlFormAction} className="space-y-2 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+      <form
+        action={urlFormAction}
+        className="space-y-2 rounded-lg border border-gray-200 p-4 dark:border-gray-800"
+      >
         <label htmlFor="backgroundUrl" className="text-sm font-medium">
           Pegar URL de la imagen
         </label>
@@ -48,7 +61,9 @@ export function AparienciaForm({ currentUrl }: { currentUrl: string | null }) {
           <p className="text-sm text-red-600">{urlState.error}</p>
         )}
         {urlState && "success" in urlState && (
-          <p className="text-sm text-green-700 dark:text-green-400">Imagen guardada.</p>
+          <p className="text-sm text-green-700 dark:text-green-400">
+            Imagen guardada.
+          </p>
         )}
       </form>
 
@@ -81,7 +96,9 @@ export function AparienciaForm({ currentUrl }: { currentUrl: string | null }) {
           <p className="text-sm text-red-600">{fileState.error}</p>
         )}
         {fileState && "success" in fileState && (
-          <p className="text-sm text-green-700 dark:text-green-400">Imagen subida y guardada.</p>
+          <p className="text-sm text-green-700 dark:text-green-400">
+            Imagen subida y guardada.
+          </p>
         )}
       </form>
     </div>

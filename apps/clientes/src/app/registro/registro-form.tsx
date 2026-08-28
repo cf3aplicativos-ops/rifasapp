@@ -7,7 +7,10 @@ import { PasswordInput } from "@rifaxapp/ui/password-input";
 import { registerAction } from "./actions";
 
 export function RegistroForm() {
-  const [state, formAction, isPending] = useActionState(registerAction, undefined);
+  const [state, formAction, isPending] = useActionState(
+    registerAction,
+    undefined,
+  );
 
   return (
     <form action={formAction} className="space-y-4">
@@ -21,7 +24,13 @@ export function RegistroForm() {
         <label htmlFor="email" className="text-sm font-medium">
           Email
         </label>
-        <input id="email" name="email" type="email" required className={formInputClassName} />
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          className={formInputClassName}
+        />
       </div>
 
       <div className="space-y-1">

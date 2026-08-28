@@ -34,8 +34,12 @@ test.describe("vendedores: login por rol", () => {
     const row = page.getByRole("row", { name: new RegExp(slug) });
     await expect(row).toContainText("ACTIVO", { timeout: 20000 });
 
-    const tenantAdminPasswordText = await page.getByText(/^Password: /).textContent();
-    const tenantAdminPassword = tenantAdminPasswordText!.replace("Password: ", "").trim();
+    const tenantAdminPasswordText = await page
+      .getByText(/^Password: /)
+      .textContent();
+    const tenantAdminPassword = tenantAdminPasswordText!
+      .replace("Password: ", "")
+      .trim();
 
     // 2. Login como TENANT_ADMIN en admin (puerto 3001), crear sede + invitar VENDEDOR.
     // Fase 13 (Multi Zones): apps/admin sirve todo bajo basePath "/admin".
@@ -58,8 +62,12 @@ test.describe("vendedores: login por rol", () => {
     await page.getByLabel("Sede").selectOption({ label: "Sede Vendedores" });
     await page.getByRole("button", { name: "Invitar usuario" }).click();
 
-    const vendedorPasswordText = await page.getByText(/^Password: /).textContent();
-    const vendedorPassword = vendedorPasswordText!.replace("Password: ", "").trim();
+    const vendedorPasswordText = await page
+      .getByText(/^Password: /)
+      .textContent();
+    const vendedorPassword = vendedorPasswordText!
+      .replace("Password: ", "")
+      .trim();
 
     // 3. Login como ese VENDEDOR en apps/vendedores (puerto 3002).
     // Fase 13 (Multi Zones): apps/vendedores sirve todo bajo basePath "/vendedores".
@@ -72,7 +80,10 @@ test.describe("vendedores: login por rol", () => {
 
     await expect(page.getByText("VENDEDOR", { exact: true })).toBeVisible();
     // El sedeId visible no debe ser el guión de "sin sede".
-    const sedeIdCell = page.locator("dd").filter({ hasText: /^(?!—$).+/ }).last();
+    const sedeIdCell = page
+      .locator("dd")
+      .filter({ hasText: /^(?!—$).+/ })
+      .last();
     await expect(sedeIdCell).toBeVisible();
 
     // 4. El TENANT_ADMIN del mismo tenant NO puede usar este portal.
@@ -82,12 +93,18 @@ test.describe("vendedores: login por rol", () => {
     await page.getByLabel("Email").fill(tenantAdminEmail);
     await page.getByLabel("Contraseña").fill(tenantAdminPassword);
     await page.getByRole("button", { name: "Ingresar" }).click();
-    await expect(page.getByRole("heading", { name: "Sin acceso a este portal" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Sin acceso a este portal" }),
+    ).toBeVisible();
 
     // 5. Cleanup: borrar el tenant desde superadmin (dispara DROP DATABASE).
     await page.goto("http://localhost:3000/tenants");
-    page.once("dialog", (dialog) => dialog.accept());
     await row.getByRole("button", { name: "Borrar" }).click();
-    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(0);
+    await row.getByRole("checkbox").check();
+    await row.locator("#confirmSlug").fill(slug);
+    await row.getByRole("button", { name: "Borrar definitivamente" }).click();
+    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(
+      0,
+    );
   });
 });

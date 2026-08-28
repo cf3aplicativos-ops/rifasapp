@@ -7,6 +7,9 @@ import { useState, type ReactNode } from "react";
 export interface SidebarNavItem {
   href: string;
   label: string;
+  /** Ícono opcional por item (Fase 18) — cada app arma su propio `lucide-react`
+   * y lo pasa acá, `SidebarShell` no importa íconos por sí mismo. */
+  icon?: ReactNode;
 }
 
 /**
@@ -37,7 +40,8 @@ export function SidebarShell({
   const navLinks = (
     <nav className="flex flex-1 flex-col gap-1 px-3">
       {navItems.map((item) => {
-        const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+        const active =
+          pathname === item.href || pathname?.startsWith(`${item.href}/`);
         return (
           <Link
             key={item.href}
@@ -45,11 +49,23 @@ export function SidebarShell({
             onClick={() => setMobileOpen(false)}
             // text-black en el link activo (no text-white, Fase 16):
             // bg-brand-600 es amarillo #F5C518, texto blanco no pasa
-            // contraste minimo sobre ese fondo.
-            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              active ? "bg-brand-600 text-black" : "text-sidebar-foreground hover:bg-white/10"
+            // contraste minimo sobre ese fondo. transition-all + scale
+            // sutil en el activo (Fase 18): micro-interacción al navegar,
+            // sin librería de animación.
+            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
+              active
+                ? "scale-[1.02] bg-brand-600 text-black"
+                : "text-sidebar-foreground hover:translate-x-0.5 hover:bg-white/10"
             }`}
           >
+            {item.icon && (
+              <span
+                className="shrink-0 [&>svg]:h-4 [&>svg]:w-4"
+                aria-hidden="true"
+              >
+                {item.icon}
+              </span>
+            )}
             {item.label}
           </Link>
         );
@@ -68,7 +84,9 @@ export function SidebarShell({
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-64 shrink-0 flex-col bg-sidebar md:flex">
-        <div className="px-5 py-6 text-lg font-semibold text-white">{brand}</div>
+        <div className="px-5 py-6 text-lg font-semibold text-white">
+          {brand}
+        </div>
         {navLinks}
         <div className="mt-auto">{userBlock}</div>
       </aside>

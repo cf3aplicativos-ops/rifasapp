@@ -4,7 +4,11 @@ import { useActionState, useRef, useState, useTransition } from "react";
 import { Badge, type BadgeTone } from "@rifaxapp/ui/badge";
 import { Button } from "@rifaxapp/ui/button";
 import { formInputClassName } from "@rifaxapp/ui/form-input";
-import { deleteTenant, toggleTenantEstado, updateTenantNombre } from "./actions";
+import {
+  deleteTenant,
+  toggleTenantEstado,
+  updateTenantNombre,
+} from "./actions";
 
 const ESTADO_TONE: Record<string, BadgeTone> = {
   ACTIVO: "green",
@@ -42,7 +46,8 @@ export function TenantRow({ tenant }: { tenant: Tenant }) {
   // de un efecto) comparando contra la referencia anterior de `nombreState`
   // para que solo dispare una vez por resultado nuevo, no en cada render
   // mientras `editing` esté en `true`.
-  const [lastHandledNombreState, setLastHandledNombreState] = useState(nombreState);
+  const [lastHandledNombreState, setLastHandledNombreState] =
+    useState(nombreState);
   if (nombreState !== lastHandledNombreState) {
     setLastHandledNombreState(nombreState);
     if (nombreState && "success" in nombreState) {
@@ -50,7 +55,8 @@ export function TenantRow({ tenant }: { tenant: Tenant }) {
     }
   }
 
-  const puedeAlternarEstado = tenant.estado === "ACTIVO" || tenant.estado === "SUSPENDIDO";
+  const puedeAlternarEstado =
+    tenant.estado === "ACTIVO" || tenant.estado === "SUSPENDIDO";
 
   return (
     <tr className="border-b border-gray-100 last:border-0 dark:border-gray-900">
@@ -66,7 +72,11 @@ export function TenantRow({ tenant }: { tenant: Tenant }) {
               autoFocus
               className={`${formInputClassName} py-1`}
             />
-            <Button type="submit" disabled={isNombrePending} className="px-2 py-1 text-xs">
+            <Button
+              type="submit"
+              disabled={isNombrePending}
+              className="px-2 py-1 text-xs"
+            >
               {isNombrePending ? "Guardando…" : "Guardar"}
             </Button>
             <button
@@ -92,7 +102,9 @@ export function TenantRow({ tenant }: { tenant: Tenant }) {
         )}
       </td>
       <td className="px-6 py-3">
-        <Badge tone={ESTADO_TONE[tenant.estado] ?? "gray"}>{tenant.estado}</Badge>
+        <Badge tone={ESTADO_TONE[tenant.estado] ?? "gray"}>
+          {tenant.estado}
+        </Badge>
       </td>
       <td className="px-6 py-3 text-gray-500 dark:text-gray-400">
         {tenant.createdAt.toLocaleDateString("es")}
@@ -169,8 +181,8 @@ function DeleteTenantDialog({ tenant }: { tenant: Tenant }) {
           Borrar tenant &quot;{tenant.nombre}&quot;
         </h2>
         <p className="mt-2 text-red-700 dark:text-red-400">
-          Esta acción es <strong>irreversible</strong>: se borra el tenant y su base de datos
-          completa (rifas, ventas, sedes, usuarios — todo).
+          Esta acción es <strong>irreversible</strong>: se borra el tenant y su
+          base de datos completa (rifas, ventas, sedes, usuarios — todo).
         </p>
 
         <label className="mt-4 flex items-start gap-2">
@@ -185,7 +197,8 @@ function DeleteTenantDialog({ tenant }: { tenant: Tenant }) {
 
         <div className="mt-3 space-y-1">
           <label htmlFor="confirmSlug" className="text-xs font-medium">
-            Escribí <span className="font-mono">{tenant.slug}</span> para confirmar
+            Escribí <span className="font-mono">{tenant.slug}</span> para
+            confirmar
           </label>
           <input
             id="confirmSlug"
@@ -199,7 +212,11 @@ function DeleteTenantDialog({ tenant }: { tenant: Tenant }) {
         {error && <p className="mt-2 text-red-600">{error}</p>}
 
         <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={cerrar} className="text-gray-600 underline dark:text-gray-400">
+          <button
+            type="button"
+            onClick={cerrar}
+            className="text-gray-600 underline dark:text-gray-400"
+          >
             Cancelar
           </button>
           <button

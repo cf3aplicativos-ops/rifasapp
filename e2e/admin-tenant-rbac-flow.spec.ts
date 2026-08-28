@@ -14,7 +14,9 @@ test.describe("admin: login multi-rol y RBAC por sede", () => {
     "Definí SUPERADMIN_SEED_EMAIL y SUPERADMIN_SEED_PASSWORD para correr este spec",
   );
 
-  test("TENANT_ADMIN crea sede + invita SEDE_ADMIN, y ese usuario ve su propio sedeId", async ({ page }) => {
+  test("TENANT_ADMIN crea sede + invita SEDE_ADMIN, y ese usuario ve su propio sedeId", async ({
+    page,
+  }) => {
     // 1. Crear un tenant real vía superadmin (puerto 3000).
     await page.goto("http://localhost:3000/login");
     await page.getByLabel("Email").fill(SUPERADMIN_SEED_EMAIL!);
@@ -46,7 +48,9 @@ test.describe("admin: login multi-rol y RBAC por sede", () => {
     // Acotado a "main": desde Fase 12 el sidebar también muestra el rol
     // (`session.user.rol` como sublabel), así que el texto sin acotar
     // matchea dos veces (sidebar + contenido del dashboard).
-    await expect(page.getByRole("main").getByText("TENANT_ADMIN", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByText("TENANT_ADMIN", { exact: true }),
+    ).toBeVisible();
 
     // 3. Crear una Sede.
     await page.goto(`${adminBase}/sedes`);
@@ -62,8 +66,12 @@ test.describe("admin: login multi-rol y RBAC por sede", () => {
     await page.getByLabel("Sede").selectOption({ label: "Sede Centro" });
     await page.getByRole("button", { name: "Invitar usuario" }).click();
 
-    const sedeAdminPasswordText = await page.getByText(/^Password: /).textContent();
-    const sedeAdminPassword = sedeAdminPasswordText!.replace("Password: ", "").trim();
+    const sedeAdminPasswordText = await page
+      .getByText(/^Password: /)
+      .textContent();
+    const sedeAdminPassword = sedeAdminPasswordText!
+      .replace("Password: ", "")
+      .trim();
 
     // 5. Logout, login como el SEDE_ADMIN recién creado.
     await page.getByRole("button", { name: "Salir" }).click();
@@ -76,7 +84,9 @@ test.describe("admin: login multi-rol y RBAC por sede", () => {
 
     // 6. Verificar que la sesión trae el rol y sedeId correctos (no null,
     // a diferencia del TENANT_ADMIN) — la regla de RBAC de ARQUITECTURA.md.
-    await expect(page.getByRole("main").getByText("SEDE_ADMIN", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByText("SEDE_ADMIN", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("— (ve todas las sedes)")).not.toBeVisible();
 
     // El SEDE_ADMIN no tiene acceso a /sedes ni /usuarios (TENANT_ADMIN-only).
@@ -85,8 +95,12 @@ test.describe("admin: login multi-rol y RBAC por sede", () => {
 
     // 7. Cleanup: borrar el tenant desde superadmin (dispara DROP DATABASE).
     await page.goto("http://localhost:3000/tenants");
-    page.once("dialog", (dialog) => dialog.accept());
     await row.getByRole("button", { name: "Borrar" }).click();
-    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(0);
+    await row.getByRole("checkbox").check();
+    await row.locator("#confirmSlug").fill(slug);
+    await row.getByRole("button", { name: "Borrar definitivamente" }).click();
+    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(
+      0,
+    );
   });
 });

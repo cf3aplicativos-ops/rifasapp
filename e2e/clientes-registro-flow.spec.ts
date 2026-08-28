@@ -12,7 +12,9 @@ test.describe("clientes: registro público", () => {
     "Definí SUPERADMIN_SEED_EMAIL y SUPERADMIN_SEED_PASSWORD para correr este spec",
   );
 
-  test("un visitante se registra, queda logueado, y su sesión no tiene sede", async ({ page }) => {
+  test("un visitante se registra, queda logueado, y su sesión no tiene sede", async ({
+    page,
+  }) => {
     // 1. Crear un tenant real vía superadmin (puerto 3000).
     await page.goto("http://localhost:3000/login");
     await page.getByLabel("Email").fill(SUPERADMIN_SEED_EMAIL!);
@@ -44,8 +46,12 @@ test.describe("clientes: registro público", () => {
 
     // 4. Cleanup: borrar el tenant desde superadmin (dispara DROP DATABASE).
     await page.goto("http://localhost:3000/tenants");
-    page.once("dialog", (dialog) => dialog.accept());
     await row.getByRole("button", { name: "Borrar" }).click();
-    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(0);
+    await row.getByRole("checkbox").check();
+    await row.locator("#confirmSlug").fill(slug);
+    await row.getByRole("button", { name: "Borrar definitivamente" }).click();
+    await expect(page.getByRole("row", { name: new RegExp(slug) })).toHaveCount(
+      0,
+    );
   });
 });

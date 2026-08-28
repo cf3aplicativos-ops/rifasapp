@@ -1,11 +1,12 @@
+import { LayoutDashboard, Receipt, Ticket } from "lucide-react";
 import { requireSession } from "@/lib/require-session";
 import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
 import { SignOutButton } from "./sign-out-button";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/rifas", label: "Rifas" },
-  { href: "/mis-boletos", label: "Mis boletos" },
+  { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard /> },
+  { href: "/rifas", label: "Rifas", icon: <Ticket /> },
+  { href: "/mis-boletos", label: "Mis boletos", icon: <Receipt /> },
 ];
 
 export default async function ProtectedLayout({
@@ -21,8 +22,8 @@ export default async function ProtectedLayout({
         <div className="space-y-3">
           <h1 className="text-xl font-semibold">Sin acceso a este portal</h1>
           <p className="text-gray-600 dark:text-gray-400">
-            La cuenta {session.user.email} tiene el rol {session.user.rol}. Este portal es solo
-            para clientes.
+            La cuenta {session.user.email} tiene el rol {session.user.rol}. Este
+            portal es solo para clientes.
           </p>
           <SignOutButton />
         </div>

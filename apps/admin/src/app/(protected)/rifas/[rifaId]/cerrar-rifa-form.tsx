@@ -32,7 +32,9 @@ export function CerrarRifaForm({ rifaId }: { rifaId: string }) {
       >
         {isPending ? "Cerrando…" : "Cerrar rifa y elegir ganador"}
       </button>
-      {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
+      {state?.error && (
+        <p className="w-full text-sm text-red-600">{state.error}</p>
+      )}
     </form>
   );
 }
