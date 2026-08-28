@@ -4,16 +4,16 @@
 
 ## Última actualización
 
-**2026-08-27** — Fase 13 completa: dominio real **rifax.lat** conectado a los 4 proyectos de Vercel, y Multi Zones (diseñado desde Fase 0, nunca implementado) construido y verificado de punta a punta contra la topología real local. **Falta que el usuario cargue los 3 registros DNS en Spaceship** para que quede funcionando en producción — ver Fase 13.
+**2026-08-27** — Fase 14 completa: landing page pública en el dominio raíz de `rifax.lat` (sin subdominio de tenant). El dominio real ya está mayormente andando: `rifax.lat` y `app.rifax.lat` (superadmin) responden en producción; el wildcard `*.rifax.lat` (necesario para los tenants) necesitó corregir el registro DNS de `A` a `CNAME` — cargado por el usuario, propagó a nivel DNS pero **falta que Vercel termine de emitir el certificado SSL del comodín** (puede tardar, ver Fase 13/14).
 
 ## Fase actual
 
-**Fase 13 — dominio real (rifax.lat) + Multi Zones** cerrada del lado del código/infra que se puede hacer sin acceso al DNS del usuario. Fases 0-12 siguen cerradas. **Pendientes críticos del usuario**:
-1. **DNS de rifax.lat** (bloqueante, nuevo): cargar los 3 registros A en Spaceship — ver Fase 13 para el detalle exacto. Sin esto, `rifax.lat`/`*.rifax.lat`/`app.rifax.lat` no resuelven todavía en el mundo real (el código y la infra de Vercel ya están listos y probados).
+**Fase 14 — landing page pública** cerrada. Fases 0-13 siguen cerradas. **Pendientes críticos del usuario**:
+1. **Certificado SSL del wildcard `*.rifax.lat`** (no bloquea seguir developando, sí bloquea que un tenant real ande en producción): el DNS ya está bien (CNAME cargado y propagado, confirmado), solo falta que Vercel termine de emitir el certificado — revisar en un rato con `vercel domains verify "*.rifax.lat" --scope rifa7` o probando `https://<slug>.rifax.lat` directo.
 2. Wompi: cargar las llaves REALES de sandbox (hoy corre con placeholders de prueba, ver Fase 8) y configurar la URL del webhook en su dashboard.
 3. Resend: crear cuenta en resend.com, sacar una API key, y decidir si verifica un dominio propio o arranca con el `onboarding@resend.dev` de pruebas (que solo entrega a la casilla con la que se registró la cuenta, no sirve para clientes reales) — ver Fase 9.
 
-Próxima: Fase 14, a definir con el usuario (probablemente: confirmar que el DNS propagó y probar contra las URLs reales).
+Próxima: Fase 15, a definir con el usuario.
 
 ## Qué se completó en esta sesión
 
@@ -380,12 +380,30 @@ Pasos hechos para dejarlas realmente operativas:
 
 **Deploy**: 2 pushes a `main` (el segundo, el fix de `turbo.json`) dispararon el auto-deploy; confirmado `● Ready` en Production para las 4 apps. Se guardó `rifax.lat` en `/configuracion` de superadmin contra la URL real de producción — confirma que esa feature de Fase 12 funciona en vivo, de paso.
 
-**Lo único que falta para que esto funcione de verdad en el mundo real**: que el usuario cargue los 3 registros DNS en Spaceship (ver "Pendientes críticos del usuario" arriba) y que propaguen. Todo el código y la infra de Vercel ya están probados y listos — apenas propague, `https://<slug>.rifax.lat`, `https://<slug>.rifax.lat/admin`, `https://<slug>.rifax.lat/vendedores` y `https://app.rifax.lat` deberían andar sin tocar nada más.
+**Lo único que faltaba para que esto funcione de verdad en el mundo real**: que el usuario cargue los 3 registros DNS en Spaceship y que propaguen — hecho, ver el addendum abajo.
+
+**Addendum (mismo día, después del cierre original de la fase) — el registro del wildcard estaba mal**: el usuario cargó los 3 registros `A` recomendados. `rifax.lat` (apex) y `app.rifax.lat` (superadmin) empezaron a andar en producción real casi enseguida. `*.rifax.lat` (el wildcard, imprescindible para que un tenant ande) siguió fallando — `vercel domains verify "*.rifax.lat"` devolvía `invalid_configuration` y las requests a un subdominio de tenant colgaban en el handshake TLS. Causa: **un wildcard no se puede validar con un registro `A` simple** — Vercel necesita un `CNAME` (`* → 71bb567e1d2cf61f.vercel-dns-017.com.`, el valor específico que da `vercel domains verify` para esta cuenta) para poder emitir el certificado SSL del comodín vía DNS-01. El usuario corrigió el registro (borró el `A` de `*`, cargó el `CNAME`) — confirmado con `nslookup` que ya resuelve bien; falta que Vercel termine de emitir el certificado (puede tardar, no es instantáneo aunque el DNS ya esté bien — ver "Pendientes críticos del usuario" arriba). **Lección para la próxima vez que se agregue un dominio con wildcard**: no asumir que la sugerencia default de `vercel domains add` (un `A`) sirve para `*.dominio` — correr `vercel domains verify` después de agregarlo y fijarse en el campo `recommended.records` de la respuesta, ahí es donde sale si hace falta un `CNAME` en vez de un `A`.
+
+## Fase 14 — landing page pública en el dominio raíz (2026-08-27)
+
+**Contexto**: con `rifax.lat` conectado (Fase 13), visitar el dominio sin subdominio de tenant (`https://rifax.lat`, la puerta de entrada de cualquiera buscando el producto) mostraba "Tenant no encontrado" — nada que explique qué es Rifaxapp. El usuario pidió una landing page. Decisión confirmada con el usuario: CTA principal **solo contacto por mailto** (sin formulario de leads ni tabla nueva — simple, sin backend nuevo).
+
+**Dónde vive**: `apps/clientes`, la zona raíz de Multi Zones (Fase 13) — es la app que ya sirve tanto `{tenant}.rifax.lat/` como el dominio pelado.
+
+**Bug de matcher corregido primero** (mismo patrón que el fix de proxy de Fase 13): `apps/clientes/src/proxy.ts` protegía `/` con auth — un visitante sin sesión en la raíz nunca llegaba a ejecutar `page.tsx`, el proxy lo mandaba derecho a `/login`, que (sin subdominio) terminaba en `/tenant-no-encontrado`. Se agregó `|$` a la negación del matcher (`$` = "no sigue nada después de la barra", excluye la raíz exacta sin afectar `/dashboard` ni ninguna otra ruta real).
+
+**`apps/clientes/src/app/page.tsx`** (reescrito, mismo patrón de `headers()` + `extractSlugFromHost`/`resolveTenantFromHost` que `login/page.tsx`): 3 casos — sin subdominio → renderiza la landing directo; con subdominio pero tenant no resuelve → `redirect("/tenant-no-encontrado")` (intacto); tenant válido → `redirect("/dashboard")` (intacto, `/dashboard` sigue protegido así que un visitante sin sesión de un tenant real termina en el login de ESE tenant, como siempre).
+
+**`apps/clientes/src/app/landing-page.tsx`** (nuevo, local a esta app — no se sumó a `@rifaxapp/ui`, nada más lo usa): hero + 4 tarjetas de features (contenido real, no aspiracional: boletos numerados, venta presencial y online, cobros con Wompi, reportes en tiempo real) + 2 CTAs "Contactanos" (`mailto:` a un email fijo, constante `CONTACT_EMAIL` al tope del archivo). Reusa los tokens de marca de Fase 12 (`bg-brand-600`, mismo monograma "R" que `AuthShell`) para verse parte del mismo producto. Responsive con breakpoints de Tailwind, verificado en mobile (375px, 1 columna) y desktop (1280px, 4 columnas).
+
+**Pruebas**: sin tests unitarios nuevos (mismo criterio que el resto de `page.tsx` del repo — puro fetch+render, la lógica de resolución de host ya está testeada en `tenant-resolver`). Verificado con `curl` los 3 casos (dominio pelado → 200 landing; tenant real → redirect a `/dashboard`; tenant inventado → redirect a `/tenant-no-encontrado`) y visualmente con el Browser tool (contenido, colores de marca, mailto armado bien, responsive mobile/desktop). **124 tests** (sin cambios), lint/check-types/build (6/6) limpios. Los 6 e2e del repo, uno por uno — los 6 verdes (en particular `clientes-registro-flow`/`pago-wompi-flow`, que tocan `apps/clientes` directo).
+
+**Deploy**: push a `main` disparó el auto-deploy; confirmado `● Ready` en Production para las 4 apps. `https://rifax.lat` ya muestra la landing en producción real (el dominio raíz viene andando desde el addendum de Fase 13).
 
 ## Próximo paso concreto
 
-1. **Confirmar que el DNS de rifax.lat propagó** (`vercel domains inspect rifax.lat --scope rifa7`, o simplemente probar las URLs reales) y probar contra producción real — ver Fase 13. Bloqueado en que el usuario haya cargado los registros A en Spaceship.
-2. **Fase 14** (a definir con el usuario): con el dominio andando, probablemente el usuario quiera probar el flujo completo de punta a punta contra producción real (crear tenant, comprar boletos, etc.) por primera vez con subdominios reales.
+1. **Confirmar que el certificado SSL del wildcard `*.rifax.lat` ya emitió** (`vercel domains verify "*.rifax.lat" --scope rifa7`, o probar `https://<slug>.rifax.lat` directo) — ver addendum de Fase 13. Es lo único que falta para que un tenant real ande en producción.
+2. **Fase 15** (a definir con el usuario): con el dominio del todo andando, probablemente probar el flujo completo de punta a punta contra producción real (crear tenant, comprar boletos, etc.) por primera vez con subdominios reales.
 3. **Wompi**: bloqueado en que el usuario cargue sus llaves reales de sandbox y configure el webhook en su dashboard — ver Fase 8. Ojo: la URL del webhook depende del dominio real ahora (`https://<slug>.rifax.lat/api/webhooks/wompi`).
 4. **Resend**: bloqueado en que el usuario cree la cuenta y pase la API key — ver Fase 9.
 5. Al levantar `npm run dev` en esta máquina, exportar `NODE_OPTIONS=--use-system-ca` antes (ver gotcha de Neon/WebSocket, sección Fase 5) — si no, todo login falla. Si aparece un 404 fantasma en dev, probar `rm -rf apps/*/.next` (ver gotcha de Turbopack en Fase 8).
@@ -393,10 +411,11 @@ Pasos hechos para dejarlas realmente operativas:
 7. **Lección de Fase 11, para cualquier bug futuro de "funciona local pero no en Vercel"**: ni "el build no tira error" ni siquiera inspeccionar el `.nft.json` de trace alcanzan como prueba de que algo funciona en producción — hay que probar contra el deploy real. Si el error es opaco, un endpoint de debug temporal con `fs.existsSync`/`readdirSync` sobre el filesystem real del Lambda (borrado apenas se resuelve) da evidencia concreta mucho más rápido que seguir adivinando fixes.
 8. Si se agrega contenido nuevo a `packages/ui` que use clases Tailwind con los tokens de `theme.css` (`bg-brand-*`, `bg-sidebar`, etc.), recordar que el `@source` en cada `globals.css` ya cubre todo `packages/ui/src` — no hace falta tocar nada más, pero si se crea un OTRO package compartido con estilos, va a necesitar su propio `@source` (ver gotcha de Fase 12).
 9. **Si se toca `next.config.ts` de `admin`/`vendedores`/`clientes` de nuevo, recordar el patrón de Multi Zones de Fase 13**: `basePath` en las zonas no-raíz, cualquier `redirectTo`/`pages.signIn` de Auth.js y cualquier `signIn()`/`signOut()` client-side necesitan la ruta completa a mano (no heredan `basePath` solos, a diferencia de `next/navigation`) — y cualquier env var nueva que se lea DENTRO de un `next.config.ts` tiene que declararse en `turbo.json` o llega `undefined` en el build de Vercel.
+10. **Si se agrega otro dominio con wildcard en el futuro** (otro cliente, otro ambiente): después de `vercel domains add "*.dominio"`, correr `vercel domains verify` y fijarse si pide `CNAME` en vez de `A` — ver addendum de Fase 13, no asumir que el `A` sugerido por default alcanza para un wildcard.
 
 ## Cierre de sesión — 2026-08-27
 
-Fase 13 cerrada del lado del código/infra: dominio real `rifax.lat` conectado a los 4 proyectos de Vercel (vía CLI), y Multi Zones — diseñado desde Fase 0, nunca implementado — construido de punta a punta siguiendo la documentación real de Next.js. Encontrados y resueltos 3 bugs reales de interacción entre Auth.js/Next.js y `basePath` (el proxy de `clientes` interceptando antes del rewrite, `pages.signIn`/`redirectTo` sin heredar basePath, `signIn`/`signOut` client-side tampoco) — cada uno confirmado con evidencia real (logs, Network, un login real de punta a punta) antes de escribir el fix, no adivinado. Un cuarto gotcha (env vars nuevas faltando en `turbo.json`) hizo fallar el primer deploy de `clientes`; corregido y redeployado, las 4 apps quedaron `● Ready`. 124 tests unitarios, lint, type-check, build y los 6 e2e del repo — todos verdes; verificado también con un login/Server Action/logout reales contra la topología completa corriendo en local (no solo unit tests). Nada quedó a medias sin commitear. **Único pendiente para que esto funcione en el mundo real**: el usuario tiene que cargar 3 registros DNS en Spaceship (ya comunicados) — todo el resto (código, Vercel, dominios agregados) ya está listo y probado.
+Fase 14 cerrada de punta a punta: landing page pública en `rifax.lat` (sin subdominio), con un fix de matcher del proxy necesario para que un visitante sin sesión llegue a verla. Contenido real (no aspiracional) sobre lo que la app ya hace, CTA simple por mailto como pidió el usuario. También se resolvió el pendiente de DNS que había quedado abierto de la Fase 13: el wildcard necesitaba un `CNAME`, no un `A` — el usuario ya lo cambió, el DNS propagó, solo falta que Vercel termine de emitir el certificado del comodín. 124 tests, lint, type-check, build (6/6) y los 6 e2e del repo — todos verdes. Verificado también visualmente (Browser tool, mobile y desktop) y con `curl` contra los 3 casos de resolución de host. Nada quedó a medias sin commitear. `https://rifax.lat` ya muestra la landing en producción real ahora mismo.
 
 ## Notas técnicas de arquitectura para quien retome
 
