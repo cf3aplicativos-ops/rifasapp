@@ -38,7 +38,8 @@ test.describe("vendedores: login por rol", () => {
     const tenantAdminPassword = tenantAdminPasswordText!.replace("Password: ", "").trim();
 
     // 2. Login como TENANT_ADMIN en admin (puerto 3001), crear sede + invitar VENDEDOR.
-    const adminBase = `http://${slug}.localhost:3001`;
+    // Fase 13 (Multi Zones): apps/admin sirve todo bajo basePath "/admin".
+    const adminBase = `http://${slug}.localhost:3001/admin`;
     await page.goto(`${adminBase}/login`);
     await page.getByLabel("Email").fill(tenantAdminEmail);
     await page.getByLabel("Contraseña").fill(tenantAdminPassword);
@@ -61,7 +62,8 @@ test.describe("vendedores: login por rol", () => {
     const vendedorPassword = vendedorPasswordText!.replace("Password: ", "").trim();
 
     // 3. Login como ese VENDEDOR en apps/vendedores (puerto 3002).
-    const vendedoresBase = `http://${slug}.localhost:3002`;
+    // Fase 13 (Multi Zones): apps/vendedores sirve todo bajo basePath "/vendedores".
+    const vendedoresBase = `http://${slug}.localhost:3002/vendedores`;
     await page.goto(`${vendedoresBase}/login`);
     await page.getByLabel("Email").fill(vendedorEmail);
     await page.getByLabel("Contraseña").fill(vendedorPassword);

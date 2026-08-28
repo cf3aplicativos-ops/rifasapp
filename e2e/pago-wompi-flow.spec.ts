@@ -45,7 +45,8 @@ test.describe("pago con Wompi: reserva + redirect a checkout + webhook de confir
     const tenantAdminPassword = tenantAdminPasswordText!.replace("Password: ", "").trim();
 
     // 2. TENANT_ADMIN crea y activa una rifa chica ($10 el boleto).
-    const adminBase = `http://${slug}.localhost:3001`;
+    // Fase 13 (Multi Zones): apps/admin sirve todo bajo basePath "/admin".
+    const adminBase = `http://${slug}.localhost:3001/admin`;
     await page.goto(`${adminBase}/login`);
     await page.getByLabel("Email").fill(tenantAdminEmail);
     await page.getByLabel("Contraseña").fill(tenantAdminPassword);

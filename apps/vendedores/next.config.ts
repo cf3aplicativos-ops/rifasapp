@@ -18,6 +18,19 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**": ["../../packages/db-tenant/src/generated/client/**/*"],
   },
+  // Fase 13 — Multi Zones (ver la nota larga en apps/clientes/next.config.ts):
+  // `vendedores` es una zona no-raíz, sirve todas sus páginas bajo
+  // `/vendedores` — con `basePath` alcanza (prefija rutas Y assets
+  // automáticamente). Aplica también en dev local y accediendo directo por
+  // el propio deploy de Vercel, no solo detrás del proxy de `clientes`.
+  basePath: "/vendedores",
+  // Requerido por Multi Zones: al llegar vía `{tenant}.rifax.lat/vendedores/...`
+  // el `Origin` de cada Server Action no coincide con el host propio del
+  // deploy de esta app — sin esto, Next.js rechaza TODAS las Server Actions
+  // como un posible CSRF.
+  experimental: {
+    serverActions: { allowedOrigins: ["rifax.lat", "*.rifax.lat"] },
+  },
 };
 
 export default nextConfig;

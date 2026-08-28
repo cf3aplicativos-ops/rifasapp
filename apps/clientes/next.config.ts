@@ -18,6 +18,25 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**": ["../../packages/db-tenant/src/generated/client/**/*"],
   },
+  // Fase 13 — Multi Zones (diseñado en docs/ARQUITECTURA.md desde Fase 0,
+  // implementado recién ahora que existe un dominio real): `clientes` es la
+  // zona raíz de cada tenant (`{tenant}.rifax.lat/`) y reenvía `/admin/**` y
+  // `/vendedores/**` a los deployments de esas apps, que sirven sus propias
+  // páginas bajo ese mismo prefijo vía `basePath` (ver sus next.config.ts).
+  // `ADMIN_ZONE_URL`/`VENDEDORES_ZONE_URL`: en dev apuntan a los otros dev
+  // servers (localhost:3001/3002); en producción, a los alias fijos
+  // rifaxapp-admin.vercel.app/rifaxapp-vendedores.vercel.app.
+  async rewrites() {
+    return [
+      { source: "/admin", destination: `${process.env.ADMIN_ZONE_URL}/admin` },
+      { source: "/admin/:path*", destination: `${process.env.ADMIN_ZONE_URL}/admin/:path*` },
+      { source: "/vendedores", destination: `${process.env.VENDEDORES_ZONE_URL}/vendedores` },
+      {
+        source: "/vendedores/:path*",
+        destination: `${process.env.VENDEDORES_ZONE_URL}/vendedores/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

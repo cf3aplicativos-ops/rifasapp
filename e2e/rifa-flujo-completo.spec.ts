@@ -38,7 +38,8 @@ test.describe("rifa: flujo completo (admin crea/activa, vendedor y cliente compr
     const tenantAdminPassword = tenantAdminPasswordText!.replace("Password: ", "").trim();
 
     // 2. TENANT_ADMIN en admin (puerto 3001): crea sede + invita un VENDEDOR.
-    const adminBase = `http://${slug}.localhost:3001`;
+    // Fase 13 (Multi Zones): apps/admin sirve todo bajo basePath "/admin".
+    const adminBase = `http://${slug}.localhost:3001/admin`;
     await page.goto(`${adminBase}/login`);
     await page.getByLabel("Email").fill(tenantAdminEmail);
     await page.getByLabel("Contraseña").fill(tenantAdminPassword);
@@ -72,7 +73,8 @@ test.describe("rifa: flujo completo (admin crea/activa, vendedor y cliente compr
     await expect(rifaRow).toContainText("Activa", { timeout: 15000 });
 
     // 4. VENDEDOR en vendedores (puerto 3002): vende el boleto #1 en persona.
-    const vendedoresBase = `http://${slug}.localhost:3002`;
+    // Fase 13 (Multi Zones): apps/vendedores sirve todo bajo basePath "/vendedores".
+    const vendedoresBase = `http://${slug}.localhost:3002/vendedores`;
     await page.goto(`${vendedoresBase}/login`);
     await page.getByLabel("Email").fill(vendedorEmail);
     await page.getByLabel("Contraseña").fill(vendedorPassword);

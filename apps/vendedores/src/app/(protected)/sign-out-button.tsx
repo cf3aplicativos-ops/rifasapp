@@ -11,7 +11,12 @@ export function SignOutButton() {
       type="button"
       onClick={async () => {
         await signOut({ redirect: false });
-        window.location.href = "/login";
+        // Hardcodeado con el basePath de esta app (Fase 13, ver
+        // next.config.ts) — `window.location.href` es una navegación dura
+        // real del browser, no pasa por next/navigation, así que el
+        // basePath no se le aplica solo. Si se cambia el basePath, esto
+        // también hay que actualizarlo a mano.
+        window.location.href = "/vendedores/login";
       }}
       className="underline"
     >

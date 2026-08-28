@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { extractSlugFromHost, resolveTenantFromHost } from "./resolve-tenant-from-host";
+import { extractSlugFromHost, resolveRequestHost, resolveTenantFromHost } from "./resolve-tenant-from-host";
 
 const tenantFindUnique = vi.fn();
 
@@ -33,6 +33,25 @@ describe("extractSlugFromHost", () => {
 
   it("devuelve null para un host vacío", () => {
     expect(extractSlugFromHost("")).toBeNull();
+  });
+});
+
+describe("resolveRequestHost", () => {
+  it("prefiere x-forwarded-host si está presente (Fase 13, detrás del proxy de Multi Zones)", () => {
+    const headers = new Headers({
+      host: "rifaxapp-admin.vercel.app",
+      "x-forwarded-host": "acme.rifaxapp.com",
+    });
+    expect(resolveRequestHost(headers)).toBe("acme.rifaxapp.com");
+  });
+
+  it("cae a host si no hay x-forwarded-host (acceso directo, sin proxy)", () => {
+    const headers = new Headers({ host: "acme.localhost:3001" });
+    expect(resolveRequestHost(headers)).toBe("acme.localhost:3001");
+  });
+
+  it("devuelve string vacío si no hay ninguno de los dos headers", () => {
+    expect(resolveRequestHost(new Headers())).toBe("");
   });
 });
 

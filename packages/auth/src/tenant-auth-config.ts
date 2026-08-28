@@ -23,6 +23,15 @@ import "./types";
  * tenant una sola vez del lado del caller y pasarlo como dato explícito
  * evita depender de esa reconstrucción.
  *
+ * `signInPath` (Fase 13, Multi Zones): `pages.signIn` de Auth.js NO hereda
+ * el `basePath` de Next.js como sí lo hacen `next/link`/`redirect()` de
+ * `next/navigation` — confirmado en la práctica, el redirect
+ * "no autenticado" de Auth.js aterrizaba en "/login" a secas (perdiendo el
+ * prefijo "/admin"/"/vendedores" y, con él, el subdominio del tenant en el
+ * browser). `admin`/`vendedores` pasan su ruta completa
+ * ("/admin/login"/"/vendedores/login"); `clientes` (zona raíz, sin
+ * basePath) usa el default.
+ *
  * `createTenantAuthConfig(appName)` en vez de un objeto estático único: en
  * producción `admin`/`vendedores`/`clientes` sirven bajo el MISMO host
  * `{tenant}.rifaxapp.com` (Multi Zones, ver docs/ARQUITECTURA.md) — las
@@ -36,11 +45,11 @@ import "./types";
  * mismo browser context (mismo hostname `*.localhost`, distinto puerto —
  * los puertos tienen el mismo problema de scoping que Multi Zones en prod).
  */
-export function createTenantAuthConfig(appName: string): NextAuthConfig {
+export function createTenantAuthConfig(appName: string, signInPath = "/login"): NextAuthConfig {
   return {
   trustHost: true,
   session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
+  pages: { signIn: signInPath },
   cookies: {
     sessionToken: { name: `authjs.session-token.${appName}` },
     callbackUrl: { name: `authjs.callback-url.${appName}` },

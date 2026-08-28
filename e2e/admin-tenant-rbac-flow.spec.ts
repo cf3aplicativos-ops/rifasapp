@@ -36,7 +36,8 @@ test.describe("admin: login multi-rol y RBAC por sede", () => {
     const tenantAdminPassword = passwordText!.replace("Password: ", "").trim();
 
     // 2. Login como TENANT_ADMIN en el subdominio del tenant (puerto 3001).
-    const adminBase = `http://${slug}.localhost:3001`;
+    // Fase 13 (Multi Zones): apps/admin sirve todo bajo basePath "/admin".
+    const adminBase = `http://${slug}.localhost:3001/admin`;
     await page.goto(`${adminBase}/login`);
     await page.getByLabel("Email").fill(tenantAdminEmail);
     await page.getByLabel("Contraseña").fill(tenantAdminPassword);

@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { resolveTenantFromHost } from "@rifaxapp/tenant-resolver";
+import { resolveRequestHost, resolveTenantFromHost } from "@rifaxapp/tenant-resolver";
 import { AuthShell } from "@rifaxapp/ui/auth-shell";
 import { Button } from "@rifaxapp/ui/button";
 import { formInputClassName } from "@rifaxapp/ui/form-input";
@@ -20,9 +20,12 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   // /login queda fuera del matcher del proxy (para no crear un loop de
-  // redirect), así que el check de tenant se repite acá.
+  // redirect), así que el check de tenant se repite acá. `resolveRequestHost`
+  // (no `headersList.get("host")` directo): esta app es una zona no-raíz de
+  // Multi Zones (Fase 13) — accedida vía el rewrite de apps/clientes, el
+  // Host real llega en X-Forwarded-Host, no en Host.
   const headersList = await headers();
-  const tenant = await resolveTenantFromHost(headersList.get("host") ?? "");
+  const tenant = await resolveTenantFromHost(resolveRequestHost(headersList));
   if (!tenant) {
     redirect("/tenant-no-encontrado");
   }

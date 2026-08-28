@@ -1,7 +1,11 @@
 import { decryptConnectionString, getControlPrismaClient } from "@rifaxapp/db-control";
 import { createTenantPrismaClient, type PrismaClient } from "@rifaxapp/db-tenant";
 
-export { extractSlugFromHost, resolveTenantFromHost } from "./resolve-tenant-from-host";
+export {
+  extractSlugFromHost,
+  resolveRequestHost,
+  resolveTenantFromHost,
+} from "./resolve-tenant-from-host";
 export type { ResolvedTenant } from "./resolve-tenant-from-host";
 
 // Cacheado por tenantId a nivel de módulo — reusa la conexión entre llamadas

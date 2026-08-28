@@ -27,6 +27,21 @@ export function extractSlugFromHost(host: string, baseDomain: string = getBaseDo
   return slug || null;
 }
 
+/**
+ * Fase 13 (Multi Zones): `admin`/`vendedores` reciben requests reenviadas
+ * por el rewrite de `apps/clientes` (ver su next.config.ts) — en ese caso su
+ * propio `Host` es el de su deploy de Vercel, no el subdominio del tenant
+ * que el usuario visitó. Next.js reenvía el host original en
+ * `X-Forwarded-Host` en ese escenario (mismo header que usa internamente
+ * para el chequeo CSRF de Server Actions, ver `serverActions.allowedOrigins`
+ * en esos `next.config.ts`) — hay que preferirlo por sobre `Host` acá
+ * también. `apps/clientes` (la zona raíz, sin proxy de por medio) no lo
+ * necesita — su `Host` ya es el correcto.
+ */
+export function resolveRequestHost(headersList: Headers): string {
+  return headersList.get("x-forwarded-host") ?? headersList.get("host") ?? "";
+}
+
 export type ResolvedTenant = { id: string; slug: string };
 
 /**
