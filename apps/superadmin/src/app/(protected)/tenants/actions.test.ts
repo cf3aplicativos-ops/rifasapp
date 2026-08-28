@@ -20,7 +20,12 @@ vi.mock("@rifaxapp/db-control", () => ({
   }),
   encryptConnectionString: vi.fn().mockReturnValue("cifrado"),
   hashPassword: vi.fn().mockResolvedValue("hash-de-la-password"),
-  TenantEstado: { PROVISIONANDO: "PROVISIONANDO", ACTIVO: "ACTIVO", ERROR: "ERROR" },
+  TenantEstado: {
+    PROVISIONANDO: "PROVISIONANDO",
+    ACTIVO: "ACTIVO",
+    SUSPENDIDO: "SUSPENDIDO",
+    ERROR: "ERROR",
+  },
 }));
 
 vi.mock("@rifaxapp/db-tenant", () => ({
@@ -51,7 +56,9 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-const { createTenant, deleteTenant } = await import("./actions");
+const { createTenant, deleteTenant, updateTenantNombre, toggleTenantEstado } = await import(
+  "./actions"
+);
 
 function formDataFrom(fields: Record<string, string>) {
   const formData = new FormData();
@@ -154,22 +161,109 @@ describe("deleteTenant", () => {
     vi.clearAllMocks();
   });
 
-  it("desaloja el cliente cacheado antes de borrar la DB, y borra la fila", async () => {
+  it("desaloja el cliente cacheado antes de borrar la DB, y borra la fila cuando el slug coincide", async () => {
     tenantFindUnique.mockResolvedValue({ id: "tenant-1", slug: "mi-rifa" });
 
-    await deleteTenant("tenant-1");
+    const result = await deleteTenant("tenant-1", "mi-rifa");
 
+    expect(result).toBeUndefined();
     expect(evictTenantPrismaClient).toHaveBeenCalledWith("tenant-1");
     expect(pgQuery).toHaveBeenCalledWith(expect.stringContaining("DROP DATABASE"));
     expect(tenantDelete).toHaveBeenCalledWith({ where: { id: "tenant-1" } });
   });
 
+  it("no borra nada si el slug tipeado no coincide (defensa en profundidad)", async () => {
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1", slug: "mi-rifa" });
+
+    const result = await deleteTenant("tenant-1", "otro-slug");
+
+    expect(result?.error).toMatch(/no coincide/i);
+    expect(evictTenantPrismaClient).not.toHaveBeenCalled();
+    expect(tenantDelete).not.toHaveBeenCalled();
+  });
+
   it("no hace nada si el tenant no existe", async () => {
     tenantFindUnique.mockResolvedValue(null);
 
-    await deleteTenant("no-existe");
+    await deleteTenant("no-existe", "cualquier-slug");
 
     expect(evictTenantPrismaClient).not.toHaveBeenCalled();
     expect(tenantDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateTenantNombre", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rechaza un nombre vacío sin tocar la DB", async () => {
+    const result = await updateTenantNombre(undefined, formDataFrom({ id: "tenant-1", nombre: "  " }));
+
+    expect(result && "error" in result ? result.error : undefined).toMatch(/nombre/i);
+    expect(tenantUpdate).not.toHaveBeenCalled();
+  });
+
+  it("informa si el tenant ya no existe", async () => {
+    tenantFindUnique.mockResolvedValue(null);
+
+    const result = await updateTenantNombre(
+      undefined,
+      formDataFrom({ id: "no-existe", nombre: "Nuevo nombre" }),
+    );
+
+    expect(result && "error" in result ? result.error : undefined).toMatch(/no existe/i);
+    expect(tenantUpdate).not.toHaveBeenCalled();
+  });
+
+  it("actualiza el nombre cuando el tenant existe", async () => {
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1", slug: "mi-rifa" });
+
+    const result = await updateTenantNombre(
+      undefined,
+      formDataFrom({ id: "tenant-1", nombre: "Nuevo nombre" }),
+    );
+
+    expect(result).toEqual({ success: true });
+    expect(tenantUpdate).toHaveBeenCalledWith({
+      where: { id: "tenant-1" },
+      data: { nombre: "Nuevo nombre" },
+    });
+  });
+});
+
+describe("toggleTenantEstado", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("pasa de ACTIVO a SUSPENDIDO", async () => {
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1", estado: "ACTIVO" });
+
+    await toggleTenantEstado("tenant-1");
+
+    expect(tenantUpdate).toHaveBeenCalledWith({
+      where: { id: "tenant-1" },
+      data: { estado: "SUSPENDIDO" },
+    });
+  });
+
+  it("pasa de SUSPENDIDO a ACTIVO", async () => {
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1", estado: "SUSPENDIDO" });
+
+    await toggleTenantEstado("tenant-1");
+
+    expect(tenantUpdate).toHaveBeenCalledWith({
+      where: { id: "tenant-1" },
+      data: { estado: "ACTIVO" },
+    });
+  });
+
+  it("no alterna un tenant PROVISIONANDO o ERROR", async () => {
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1", estado: "PROVISIONANDO" });
+
+    await toggleTenantEstado("tenant-1");
+
+    expect(tenantUpdate).not.toHaveBeenCalled();
   });
 });

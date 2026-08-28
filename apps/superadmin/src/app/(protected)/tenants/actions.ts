@@ -128,12 +128,81 @@ export async function createTenant(
   return { success: { adminEmail, adminPassword } };
 }
 
-export async function deleteTenant(id: string) {
+export type UpdateTenantNombreState = { error: string } | { success: true } | undefined;
+
+export async function updateTenantNombre(
+  _prevState: UpdateTenantNombreState,
+  formData: FormData,
+): Promise<UpdateTenantNombreState> {
+  await requireSuperAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const nombre = String(formData.get("nombre") ?? "").trim();
+
+  if (!nombre) {
+    return { error: "El nombre es obligatorio" };
+  }
+
+  const prisma = getControlPrismaClient();
+  const tenant = await prisma.tenant.findUnique({ where: { id } });
+  if (!tenant) {
+    return { error: "El tenant ya no existe" };
+  }
+
+  await prisma.tenant.update({ where: { id }, data: { nombre } });
+  revalidatePath("/tenants");
+  return { success: true };
+}
+
+/**
+ * Desactivar/reactivar (Fase 17) — alterna ACTIVO ⇄ SUSPENDIDO. No hace
+ * falta ningún cambio en el enforcement: `resolveTenantFromHost` (Fase 3)
+ * ya solo deja pasar tenants `ACTIVO`, así que un tenant `SUSPENDIDO` queda
+ * bloqueado de login en admin/vendedores/clientes de inmediato, sin tocar
+ * nada más. Solo tiene sentido para esos dos estados — un tenant
+ * `PROVISIONANDO`/`ERROR` no tiene una DB usable para "reactivar" y el botón
+ * ni se muestra para esos casos, pero igual se valida server-side por si
+ * llega una request directa.
+ */
+export async function toggleTenantEstado(id: string) {
   await requireSuperAdmin();
 
   const prisma = getControlPrismaClient();
   const tenant = await prisma.tenant.findUnique({ where: { id } });
   if (!tenant) return;
+
+  if (tenant.estado !== TenantEstado.ACTIVO && tenant.estado !== TenantEstado.SUSPENDIDO) {
+    return;
+  }
+
+  const nuevoEstado =
+    tenant.estado === TenantEstado.ACTIVO ? TenantEstado.SUSPENDIDO : TenantEstado.ACTIVO;
+
+  await prisma.tenant.update({ where: { id }, data: { estado: nuevoEstado } });
+  revalidatePath("/tenants");
+}
+
+export type DeleteTenantState = { error: string } | undefined;
+
+/**
+ * `confirmSlug` (Fase 17): defensa en profundidad — el diálogo del cliente
+ * ya exige tipear el slug exacto antes de habilitar el botón, pero server-side
+ * se vuelve a validar acá por si alguna vez se llama a esta acción desde
+ * otro lugar sin pasar por ese diálogo.
+ */
+export async function deleteTenant(
+  id: string,
+  confirmSlug: string,
+): Promise<DeleteTenantState> {
+  await requireSuperAdmin();
+
+  const prisma = getControlPrismaClient();
+  const tenant = await prisma.tenant.findUnique({ where: { id } });
+  if (!tenant) return;
+
+  if (confirmSlug !== tenant.slug) {
+    return { error: "El slug no coincide — no se borró nada." };
+  }
 
   const dbName = tenantDatabaseName(tenant.slug);
 
