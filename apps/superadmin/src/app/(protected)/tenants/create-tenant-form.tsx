@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import { Button } from "@rifaxapp/ui/button";
+import { formInputClassName } from "@rifaxapp/ui/form-input";
 import { createTenant } from "./actions";
 
 export function CreateTenantForm() {
@@ -12,7 +14,12 @@ export function CreateTenantForm() {
         action={formAction}
         className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 p-4 dark:border-gray-800"
       >
-        <div className="space-y-1">
+        {/* min-w (no flex-1 suelto): sin un ancho mínimo, `formInputClassName`
+            (w-full, ver Fase 16 — antes estos 3 inputs tenían un className
+            crudo sin `w-full`, que hacía que label e input quedaran en la
+            misma línea, pegados, en vez de apilados) encoge cada campo a
+            practicamente 0 dentro de un `flex-wrap` con 3+ hermanos. */}
+        <div className="min-w-[10rem] flex-1 space-y-1">
           <label htmlFor="slug" className="text-sm font-medium">
             Slug
           </label>
@@ -21,10 +28,10 @@ export function CreateTenantForm() {
             name="slug"
             placeholder="mi-rifa"
             required
-            className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            className={formInputClassName}
           />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-[10rem] flex-1 space-y-1">
           <label htmlFor="nombre" className="text-sm font-medium">
             Nombre
           </label>
@@ -33,10 +40,10 @@ export function CreateTenantForm() {
             name="nombre"
             placeholder="Mi Rifa S.A."
             required
-            className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            className={formInputClassName}
           />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-[12rem] flex-1 space-y-1">
           <label htmlFor="adminEmail" className="text-sm font-medium">
             Email del admin
           </label>
@@ -46,16 +53,12 @@ export function CreateTenantForm() {
             type="email"
             placeholder="admin@mi-rifa.com"
             required
-            className="rounded border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            className={formInputClassName}
           />
         </div>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="rounded bg-gray-900 px-4 py-2 text-white disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900"
-        >
+        <Button type="submit" disabled={isPending}>
           {isPending ? "Creando…" : "Crear tenant"}
-        </button>
+        </Button>
         {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
       </form>
 
