@@ -43,8 +43,11 @@ export function SidebarShell({
             key={item.href}
             href={item.href}
             onClick={() => setMobileOpen(false)}
+            // text-black en el link activo (no text-white, Fase 16):
+            // bg-brand-600 es amarillo #F5C518, texto blanco no pasa
+            // contraste minimo sobre ese fondo.
             className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              active ? "bg-brand-600 text-white" : "text-sidebar-foreground hover:bg-white/10"
+              active ? "bg-brand-600 text-black" : "text-sidebar-foreground hover:bg-white/10"
             }`}
           >
             {item.label}

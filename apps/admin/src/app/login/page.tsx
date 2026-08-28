@@ -1,9 +1,11 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { getPlatformConfig } from "@rifaxapp/db-control";
 import { resolveRequestHost, resolveTenantFromHost } from "@rifaxapp/tenant-resolver";
 import { AuthShell } from "@rifaxapp/ui/auth-shell";
 import { Button } from "@rifaxapp/ui/button";
 import { formInputClassName } from "@rifaxapp/ui/form-input";
+import { PasswordInput } from "@rifaxapp/ui/password-input";
 import { loginAction } from "./actions";
 
 // Forzado explícitamente: esta página resuelve el tenant por Host en cada
@@ -31,12 +33,14 @@ export default async function LoginPage({
   }
 
   const { error } = await searchParams;
+  const config = await getPlatformConfig();
 
   return (
     <AuthShell
       title="Rifaxapp"
       subtitle={tenant.slug}
       error={error && "Email o contraseña incorrectos."}
+      backgroundImageUrl={config.loginBackgroundUrl ?? undefined}
     >
       <form action={loginAction} className="space-y-4">
         <div className="space-y-1">
@@ -50,13 +54,7 @@ export default async function LoginPage({
           <label htmlFor="password" className="text-sm font-medium">
             Contraseña
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            className={formInputClassName}
-          />
+          <PasswordInput id="password" name="password" required />
         </div>
 
         <Button type="submit" className="w-full">

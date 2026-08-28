@@ -39,7 +39,11 @@ model SuperAdmin {
 // de la plataforma desde la UI de superadmin. Es solo referencia/instrucción
 // hoy — no reconfigura nada en Vercel/DNS por sí mismo.
 model PlatformConfig {
-  id         String   @id @default(cuid())
-  baseDomain String?
-  updatedAt  DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  baseDomain         String?
+  // Imagen de fondo del login de admin/vendedores/clientes (Fase 16), pegada
+  // como URL o subida a Vercel Blob desde /apariencia de superadmin — global
+  // para toda la plataforma, no por tenant. Null = fondo plano de siempre.
+  loginBackgroundUrl String?
+  updatedAt          DateTime @updatedAt
 }

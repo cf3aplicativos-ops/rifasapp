@@ -34,7 +34,9 @@ export function LandingPage() {
     <div className="flex min-h-screen flex-col bg-white dark:bg-gray-950">
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white shadow-sm">
+          {/* text-black (no text-white, Fase 16): bg-brand-600 es amarillo
+              #F5C518, texto blanco no pasa contraste minimo sobre ese fondo. */}
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-black shadow-sm">
             R
           </span>
           <span className="text-lg font-semibold text-gray-900 dark:text-gray-50">Rifaxapp</span>
@@ -63,7 +65,7 @@ export function LandingPage() {
           <div className="mt-8">
             <a
               href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Quiero usar Rifaxapp")}`}
-              className="inline-block rounded-lg bg-brand-600 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+              className="inline-block rounded-lg bg-brand-600 px-6 py-3 text-sm font-medium text-black transition-colors hover:bg-brand-700"
             >
               Contactanos
             </a>
@@ -95,7 +97,7 @@ export function LandingPage() {
             <div className="mt-6">
               <a
                 href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Quiero usar Rifaxapp")}`}
-                className="inline-block rounded-lg bg-brand-600 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+                className="inline-block rounded-lg bg-brand-600 px-6 py-3 text-sm font-medium text-black transition-colors hover:bg-brand-700"
               >
                 Contactanos
               </a>

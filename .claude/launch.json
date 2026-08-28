@@ -6,6 +6,24 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/superadmin"],
       "port": 3000
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/admin"],
+      "port": 3001
+    },
+    {
+      "name": "vendedores",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/vendedores"],
+      "port": 3002
+    },
+    {
+      "name": "clientes",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/clientes"],
+      "port": 3003
     }
   ]
 }

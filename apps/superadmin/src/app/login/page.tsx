@@ -1,6 +1,7 @@
 import { AuthShell } from "@rifaxapp/ui/auth-shell";
 import { Button } from "@rifaxapp/ui/button";
 import { formInputClassName } from "@rifaxapp/ui/form-input";
+import { PasswordInput } from "@rifaxapp/ui/password-input";
 import { loginAction } from "./actions";
 
 export default async function LoginPage({
@@ -28,13 +29,7 @@ export default async function LoginPage({
           <label htmlFor="password" className="text-sm font-medium">
             Contraseña
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            className={formInputClassName}
-          />
+          <PasswordInput id="password" name="password" required />
         </div>
 
         <Button type="submit" className="w-full">

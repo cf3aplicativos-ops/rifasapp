@@ -8,6 +8,7 @@
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"],
       "env": [
         "AUTH_SECRET",
+        "BLOB_READ_WRITE_TOKEN",
         "CONTROL_PLANE_ENCRYPTION_KEY",
         "DATABASE_URL*",
         "NEON_*",

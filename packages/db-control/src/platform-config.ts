@@ -22,3 +22,13 @@ export async function setPlatformBaseDomain(baseDomain: string): Promise<Platfor
     data: { baseDomain },
   });
 }
+
+/** `url: null` limpia el campo (botón "Quitar imagen" de /apariencia, Fase 16). */
+export async function setLoginBackgroundUrl(url: string | null): Promise<PlatformConfig> {
+  const current = await getPlatformConfig();
+  const prisma = getControlPrismaClient();
+  return prisma.platformConfig.update({
+    where: { id: current.id },
+    data: { loginBackgroundUrl: url },
+  });
+}

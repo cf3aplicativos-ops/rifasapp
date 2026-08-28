@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { getPlatformConfig } from "@rifaxapp/db-control";
 import { resolveTenantFromHost } from "@rifaxapp/tenant-resolver";
+import { AuthShell } from "@rifaxapp/ui/auth-shell";
 import { RegistroForm } from "./registro-form";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +14,15 @@ export default async function RegistroPage() {
     redirect("/tenant-no-encontrado");
   }
 
+  const config = await getPlatformConfig();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
+    <AuthShell
+      title="Rifaxapp"
+      subtitle={`Crear cuenta · ${tenant.slug}`}
+      backgroundImageUrl={config.loginBackgroundUrl ?? undefined}
+    >
       <RegistroForm />
-    </div>
+    </AuthShell>
   );
 }

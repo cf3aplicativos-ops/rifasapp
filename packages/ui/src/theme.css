@@ -4,27 +4,33 @@
  * soporta partials de tema con `@theme {}` en cualquier archivo importado,
  * siempre que el import venga después del import base de Tailwind.
  *
- * Paleta: slate (neutros) + índigo (acento de marca) — look SaaS simple,
- * sin depender de ninguna imagen/logo externo. No pisa `--background`/
- * `--foreground` ni el bloque de dark mode de cada app: esos siguen
- * viviendo en el globals.css de cada una.
+ * Paleta (Fase 16, reemplaza el índigo original): amarillo `#F5C518` +
+ * blanco/negro, pedido explícito del usuario. `--color-brand-600` es el hex
+ * exacto pedido (fondos sólidos de botones/marca); 700 más oscuro para
+ * hover; 500 para focus rings. `--color-sidebar` pasa a negro real (no un
+ * gris muy oscuro como antes) para cumplir "negro" literal.
+ *
+ * OJO — contraste: texto blanco sobre este amarillo no pasa legibilidad
+ * mínima. Todo lo que usa `bg-brand-600` como fondo sólido (Button primary,
+ * el monograma "R", el link activo del sidebar) usa `text-black`, no
+ * `text-white` — ver esos componentes.
  */
 @theme {
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
+  --color-brand-50: #fffbea;
+  --color-brand-100: #fff3c4;
+  --color-brand-200: #ffe58a;
+  --color-brand-300: #ffd451;
+  --color-brand-400: #fad028;
+  --color-brand-500: #f7cf3e;
+  --color-brand-600: #f5c518;
+  --color-brand-700: #cda30d;
+  --color-brand-800: #a17e08;
+  --color-brand-900: #7a5f06;
 
   --color-surface: #ffffff;
-  --color-surface-dark: #0f1115;
-  --color-sidebar: #111827;
-  --color-sidebar-foreground: #d1d5db;
+  --color-surface-dark: #0a0a0a;
+  --color-sidebar: #0a0a0a;
+  --color-sidebar-foreground: #e5e5e5;
 
   --radius-card: 0.75rem;
 }

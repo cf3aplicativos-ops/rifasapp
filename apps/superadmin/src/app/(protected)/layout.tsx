@@ -5,6 +5,7 @@ import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
 const NAV_ITEMS = [
   { href: "/tenants", label: "Tenants" },
   { href: "/configuracion", label: "Dominio" },
+  { href: "/apariencia", label: "Apariencia" },
 ];
 
 export default async function ProtectedLayout({
