@@ -32,17 +32,28 @@ const FEATURES = [
 export function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white dark:bg-gray-950">
-      <header className="mx-auto flex w-full max-w-5xl items-center gap-3 px-6 py-6">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white shadow-sm">
-          R
-        </span>
-        <span className="text-lg font-semibold text-gray-900 dark:text-gray-50">Rifaxapp</span>
+      <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white shadow-sm">
+            R
+          </span>
+          <span className="text-lg font-semibold text-gray-900 dark:text-gray-50">Rifaxapp</span>
+        </div>
+        {/* Login del superadmin (dueño de la plataforma) — es el único
+            acceso posible desde el dominio pelado, sin subdominio de
+            tenant todavía. */}
+        <a
+          href="https://app.rifax.lat/login"
+          className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+        >
+          Iniciar sesión
+        </a>
       </header>
 
       <main className="flex-1">
         <section className="mx-auto max-w-3xl px-6 py-16 text-center sm:py-24">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-5xl dark:text-gray-50">
-            Organizá y vendé tus rifas online
+            Organiza y vende tus rifas online
           </h1>
           <p className="mt-6 text-lg text-gray-600 dark:text-gray-400">
             Rifaxapp es la plataforma para llevar tu rifa de punta a punta: boletos numerados, vendedores
