@@ -15,7 +15,10 @@
         "POSTGRES_*",
         "TENANTS_HOST_*",
         "VERCEL_OIDC_TOKEN",
-        "VITE_NEON_AUTH_URL"
+        "VITE_NEON_AUTH_URL",
+        "TENANT_BASE_DOMAIN",
+        "ADMIN_ZONE_URL",
+        "VENDEDORES_ZONE_URL"
       ]
     },
     "lint": {
