@@ -66,47 +66,71 @@ enum RifaFormatoDigitos {
   CUATRO // 0000-9999
 }
 
+// Fase 19B: cómo llegó un boleto a estar asignado a su dueño actual
+// (Sede o Vendedor) — CONSECUTIVO/ALEATORIO/ABONADOS son los 3 modos que
+// elige el TENANT_ADMIN al asignar; TRASPASO marca que llegó por un
+// traspaso aceptado (no por una asignación original).
+enum AsignacionModo {
+  CONSECUTIVO
+  ALEATORIO
+  ABONADOS
+  TRASPASO
+}
+
+enum TraspasoEstado {
+  PENDIENTE
+  ACEPTADO
+  RECHAZADO
+}
+
 model Sede {
-  id        String    @id @default(uuid())
-  nombre    String
-  usuarios  Usuario[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                    String              @id @default(uuid())
+  nombre                String
+  usuarios              Usuario[]
+  boletosAsignados      Boleto[]            @relation("BoletoAsignadoSede")
+  traspasosComoPoseedor SolicitudTraspaso[] @relation("TraspasoPoseedorSede")
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 }
 
 model Usuario {
-  id                 String     @id @default(uuid())
-  email              String     @unique
-  passwordHash       String
-  nombre             String?
-  rol                UsuarioRol
-  sedeId             String?
-  sede               Sede?      @relation(fields: [sedeId], references: [id])
-  rifasCreadas       Rifa[]     @relation("RifaCreador")
-  ventasComoVendedor Venta[]    @relation("VentaVendedor")
-  ventasComoCliente  Venta[]    @relation("VentaCliente")
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  id                    String              @id @default(uuid())
+  email                 String              @unique
+  passwordHash          String
+  nombre                String?
+  rol                   UsuarioRol
+  sedeId                String?
+  sede                  Sede?               @relation(fields: [sedeId], references: [id])
+  rifasCreadas          Rifa[]              @relation("RifaCreador")
+  ventasComoVendedor    Venta[]             @relation("VentaVendedor")
+  ventasComoCliente     Venta[]             @relation("VentaCliente")
+  boletosAsignados      Boleto[]            @relation("BoletoAsignadoVendedor")
+  traspasosSolicitados  SolicitudTraspaso[] @relation("TraspasoSolicitante")
+  traspasosComoPoseedor SolicitudTraspaso[] @relation("TraspasoPoseedorVendedor")
+  traspasosResueltos    SolicitudTraspaso[] @relation("TraspasoResueltoPor")
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 }
 
 model Rifa {
-  id                 String              @id @default(uuid())
-  nombre             String
-  descripcion        String?
-  precioBoleto       Decimal             @db.Decimal(12, 2)
-  cantidadBoletos    Int
-  estado             RifaEstado          @default(BORRADOR)
-  fechaSorteo        DateTime?
-  boletoGanadorId    String?             @unique
-  boletoGanador      Boleto?             @relation("RifaGanador", fields: [boletoGanadorId], references: [id])
-  creadoPorId        String
-  creadoPor          Usuario             @relation("RifaCreador", fields: [creadoPorId], references: [id])
-  boletos            Boleto[]            @relation("RifaBoletos")
-  ventas             Venta[]
-  formatoDigitos     RifaFormatoDigitos?
-  premiosAnticipados PremioAnticipado[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                  String              @id @default(uuid())
+  nombre              String
+  descripcion         String?
+  precioBoleto        Decimal             @db.Decimal(12, 2)
+  cantidadBoletos     Int
+  estado              RifaEstado          @default(BORRADOR)
+  fechaSorteo         DateTime?
+  boletoGanadorId     String?             @unique
+  boletoGanador       Boleto?             @relation("RifaGanador", fields: [boletoGanadorId], references: [id])
+  creadoPorId         String
+  creadoPor           Usuario             @relation("RifaCreador", fields: [creadoPorId], references: [id])
+  boletos             Boleto[]            @relation("RifaBoletos")
+  ventas              Venta[]
+  formatoDigitos      RifaFormatoDigitos?
+  premiosAnticipados  PremioAnticipado[]
+  solicitudesTraspaso SolicitudTraspaso[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 }
 
 // Fase 19A: premio que se entrega ANTES del sorteo principal, atado a un
@@ -137,7 +161,59 @@ model Boleto {
   rifaGanadora Rifa?        @relation("RifaGanador")
   createdAt    DateTime     @default(now())
 
+  // Fase 19B: dueño actual del boleto (mutuamente excluyentes — un boleto
+  // asignado a un vendedor no tiene asignadoASedeId, y viceversa; sin
+  // ninguno de los dos = libre, vendible por cualquiera, el default de
+  // todo lo que ya existía antes de esta fase).
+  asignadoASedeId     String?
+  asignadoASede       Sede?               @relation("BoletoAsignadoSede", fields: [asignadoASedeId], references: [id])
+  asignadoAVendedorId String?
+  asignadoAVendedor   Usuario?            @relation("BoletoAsignadoVendedor", fields: [asignadoAVendedorId], references: [id])
+  asignacionModo      AsignacionModo?
+  abonadoId           String?
+  abonado             Abonado?            @relation(fields: [abonadoId], references: [id])
+  solicitudesTraspaso SolicitudTraspaso[]
+
   @@unique([rifaId, numero])
+}
+
+// Fase 19B: cliente recurrente que repite el mismo número en cada rifa
+// nueva ("modo abonados" de asignación) — identificado por teléfono
+// porque los compradores de un vendedor son hoy texto libre (Venta.
+// compradorTelefono), sin cuenta de Usuario/CLIENTE detrás.
+model Abonado {
+  id        String   @id @default(uuid())
+  nombre    String
+  telefono  String   @unique
+  numero    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  boletos   Boleto[]
+}
+
+// Fase 19B: pedido de un vendedor/sede para que le traspasen un número que
+// tiene otro vendedor u otra sede. `poseedorId`/`poseedorSedeId` son
+// mutuamente excluyentes, igual que en Boleto — reflejan quién lo tenía al
+// momento de pedirlo.
+model SolicitudTraspaso {
+  id             String         @id @default(uuid())
+  boletoId       String
+  boleto         Boleto         @relation(fields: [boletoId], references: [id])
+  rifaId         String
+  rifa           Rifa           @relation(fields: [rifaId], references: [id])
+  numero         Int
+  solicitanteId  String
+  solicitante    Usuario        @relation("TraspasoSolicitante", fields: [solicitanteId], references: [id])
+  poseedorId     String?
+  poseedor       Usuario?       @relation("TraspasoPoseedorVendedor", fields: [poseedorId], references: [id])
+  poseedorSedeId String?
+  poseedorSede   Sede?          @relation("TraspasoPoseedorSede", fields: [poseedorSedeId], references: [id])
+  estado         TraspasoEstado @default(PENDIENTE)
+  motivoRechazo  String?
+  resueltoPorId  String?
+  resueltoPor    Usuario?       @relation("TraspasoResueltoPor", fields: [resueltoPorId], references: [id])
+  resueltoAt     DateTime?
+  createdAt      DateTime       @default(now())
 }
 
 model Venta {

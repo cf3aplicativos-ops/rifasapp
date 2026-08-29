@@ -6,8 +6,10 @@ export {
 } from "./expirar-ventas-vencidas";
 export {
   reservarBoletosParaVenta,
+  venderBoletosComoVendedor,
   confirmarPagoDeVenta,
   anularVentaPendiente,
+  assertBoletosVendibles,
   VentaLifecycleError,
 } from "./venta-lifecycle";
 export {
@@ -22,6 +24,17 @@ export {
   numeroInicialBoleto,
 } from "./boleto-format";
 export {
+  asignarBoletosConsecutivo,
+  asignarBoletosAleatorio,
+  asignarBoletosAbonados,
+  AsignacionError,
+} from "./asignacion-boletos";
+export type { AsignacionTarget, AsignacionAbonadoResultado } from "./asignacion-boletos";
+export { solicitarTraspaso, resolverTraspaso, TraspasoError } from "./traspaso";
+export type { ResolverTraspasoDecision } from "./traspaso";
+export { consultarEstadoNumero } from "./consulta-numero";
+export type { ConsultaNumeroResultado } from "./consulta-numero";
+export {
   PrismaClient,
   UsuarioRol,
   RifaEstado,
@@ -29,6 +42,8 @@ export {
   VentaEstado,
   MetodoPago,
   RifaFormatoDigitos,
+  AsignacionModo,
+  TraspasoEstado,
 } from "./generated/client";
 export type {
   Sede,
@@ -37,4 +52,6 @@ export type {
   Boleto,
   Venta,
   PremioAnticipado,
+  Abonado,
+  SolicitudTraspaso,
 } from "./generated/client";

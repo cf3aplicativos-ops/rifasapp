@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   reservarBoletosParaVenta,
+  venderBoletosComoVendedor,
   confirmarPagoDeVenta,
   anularVentaPendiente,
+  assertBoletosVendibles,
+  VentaLifecycleError,
 } from "./venta-lifecycle";
 
 function makePrismaMock() {
@@ -88,6 +91,148 @@ describe("reservarBoletosParaVenta", () => {
     expect(boletoUpdateMany).toHaveBeenCalledWith({
       where: { id: { in: ["b1", "b2"] }, estado: "DISPONIBLE" },
       data: { estado: "RESERVADO", ventaId: "v1" },
+    });
+  });
+
+  it("un CLIENTE no puede reservar un boleto asignado a un vendedor", async () => {
+    const { prisma, rifaFindUnique, boletoFindMany } = makePrismaMock();
+    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "ACTIVA", precioBoleto: 10 });
+    boletoFindMany.mockResolvedValue([{ id: "b1", numero: 1, asignadoAVendedorId: "vend1" }]);
+
+    await expect(
+      reservarBoletosParaVenta(prisma, { rifaId: "r1", clienteId: "c1", numeros: [1], metodoPago: "WOMPI" }),
+    ).rejects.toThrow(/reservado, no disponible/);
+  });
+
+  it("un CLIENTE no puede reservar un boleto asignado a una sede", async () => {
+    const { prisma, rifaFindUnique, boletoFindMany } = makePrismaMock();
+    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "ACTIVA", precioBoleto: 10 });
+    boletoFindMany.mockResolvedValue([{ id: "b1", numero: 1, asignadoASedeId: "sede1" }]);
+
+    await expect(
+      reservarBoletosParaVenta(prisma, { rifaId: "r1", clienteId: "c1", numeros: [1], metodoPago: "WOMPI" }),
+    ).rejects.toThrow(/reservado, no disponible/);
+  });
+});
+
+describe("assertBoletosVendibles", () => {
+  it("permite un boleto libre a cualquiera", () => {
+    expect(() =>
+      assertBoletosVendibles([{ numero: 1, asignadoASedeId: null, asignadoAVendedorId: null }]),
+    ).not.toThrow();
+    expect(() =>
+      assertBoletosVendibles(
+        [{ numero: 1, asignadoASedeId: null, asignadoAVendedorId: null }],
+        "vend1",
+      ),
+    ).not.toThrow();
+  });
+
+  it("un vendedor puede vender lo suyo", () => {
+    expect(() =>
+      assertBoletosVendibles(
+        [{ numero: 1, asignadoASedeId: null, asignadoAVendedorId: "vend1" }],
+        "vend1",
+      ),
+    ).not.toThrow();
+  });
+
+  it("un vendedor no puede vender lo de otro vendedor", () => {
+    expect(() =>
+      assertBoletosVendibles(
+        [{ numero: 1, asignadoASedeId: null, asignadoAVendedorId: "vend2" }],
+        "vend1",
+      ),
+    ).toThrow(/asignado a otro vendedor/);
+  });
+
+  it("un vendedor no puede vender lo asignado a la sede", () => {
+    expect(() =>
+      assertBoletosVendibles(
+        [{ numero: 1, asignadoASedeId: "sede1", asignadoAVendedorId: null }],
+        "vend1",
+      ),
+    ).toThrow(/asignado a la sede/);
+  });
+
+  it("sin vendedorId (canal cliente/Wompi), cualquier boleto asignado queda bloqueado", () => {
+    expect(() =>
+      assertBoletosVendibles([{ numero: 1, asignadoASedeId: "sede1", asignadoAVendedorId: null }]),
+    ).toThrow(/reservado, no disponible/);
+    expect(() =>
+      assertBoletosVendibles([{ numero: 1, asignadoASedeId: null, asignadoAVendedorId: "vend1" }]),
+    ).toThrow(/reservado, no disponible/);
+  });
+});
+
+describe("venderBoletosComoVendedor", () => {
+  it("tira si la rifa no está ACTIVA", async () => {
+    const { prisma, rifaFindUnique } = makePrismaMock();
+    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "BORRADOR", precioBoleto: 10 });
+
+    await expect(
+      venderBoletosComoVendedor(prisma, {
+        rifaId: "r1",
+        vendedorId: "vend1",
+        numeros: [1],
+        compradorNombre: "Juan",
+        compradorTelefono: null,
+        metodoPago: "EFECTIVO",
+      }),
+    ).rejects.toThrow(VentaLifecycleError);
+  });
+
+  it("tira si el boleto está asignado a otro vendedor", async () => {
+    const { prisma, rifaFindUnique, boletoFindMany } = makePrismaMock();
+    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "ACTIVA", precioBoleto: 10 });
+    boletoFindMany.mockResolvedValue([{ id: "b1", numero: 1, asignadoAVendedorId: "vend2" }]);
+
+    await expect(
+      venderBoletosComoVendedor(prisma, {
+        rifaId: "r1",
+        vendedorId: "vend1",
+        numeros: [1],
+        compradorNombre: "Juan",
+        compradorTelefono: null,
+        metodoPago: "EFECTIVO",
+      }),
+    ).rejects.toThrow(/asignado a otro vendedor/);
+  });
+
+  it("vende un boleto libre y uno asignado a sí mismo, en PAGADA", async () => {
+    const { prisma, rifaFindUnique, boletoFindMany, boletoUpdateMany, ventaCreate } = makePrismaMock();
+    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "ACTIVA", precioBoleto: 10 });
+    boletoFindMany.mockResolvedValue([
+      { id: "b1", numero: 1, asignadoAVendedorId: "vend1", asignadoASedeId: null },
+      { id: "b2", numero: 2, asignadoAVendedorId: null, asignadoASedeId: null },
+    ]);
+    boletoUpdateMany.mockResolvedValue({ count: 2 });
+    ventaCreate.mockResolvedValue({ id: "v1" });
+
+    const result = await venderBoletosComoVendedor(prisma, {
+      rifaId: "r1",
+      vendedorId: "vend1",
+      numeros: [1, 2],
+      compradorNombre: "Juan",
+      compradorTelefono: null,
+      metodoPago: "EFECTIVO",
+    });
+
+    expect(result).toEqual({ ventaId: "v1", montoTotal: 20 });
+    expect(ventaCreate).toHaveBeenCalledWith({
+      data: {
+        rifaId: "r1",
+        vendedorId: "vend1",
+        compradorNombre: "Juan",
+        compradorTelefono: null,
+        montoTotal: 20,
+        metodoPago: "EFECTIVO",
+        estado: "PAGADA",
+      },
+    });
+    expect(boletoUpdateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["b1", "b2"] }, estado: "DISPONIBLE" },
+      data: { estado: "VENDIDO", ventaId: "v1" },
     });
   });
 });

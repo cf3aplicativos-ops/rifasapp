@@ -3,30 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const authMock = vi.fn();
 vi.mock("@/auth", () => ({ auth: () => authMock() }));
 
-const rifaFindUnique = vi.fn();
-const boletoFindMany = vi.fn();
-const ventaCreate = vi.fn();
-const boletoUpdateMany = vi.fn();
-
-const getTenantPrismaClient = vi.fn().mockResolvedValue({
-  rifa: { findUnique: rifaFindUnique },
-  boleto: { findMany: boletoFindMany, updateMany: boletoUpdateMany },
-  venta: { create: ventaCreate },
-  $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-    fn({
-      venta: { create: ventaCreate },
-      boleto: { updateMany: boletoUpdateMany },
-    }),
-});
+const getTenantPrismaClient = vi.fn().mockResolvedValue({ __tag: "tenant-prisma" });
 vi.mock("@rifaxapp/tenant-resolver", () => ({
   getTenantPrismaClient: (tenantId: string) => getTenantPrismaClient(tenantId),
 }));
 
+// Fase 19B: registrarVenta ya no arma su propia transacción — delega en
+// venderBoletosComoVendedor (@rifaxapp/db-tenant), que es donde vive ahora
+// la lógica real (incluida assertBoletosVendibles) y sus propios tests
+// (ver venta-lifecycle.test.ts). Acá solo se prueba la delegación: RBAC,
+// validación de formData, y que el error del helper compartido se propague.
+const venderBoletosComoVendedor = vi.fn();
+class VentaLifecycleError extends Error {}
 vi.mock("@rifaxapp/db-tenant", () => ({
-  RifaEstado: { BORRADOR: "BORRADOR", ACTIVA: "ACTIVA", CERRADA: "CERRADA", CANCELADA: "CANCELADA" },
-  BoletoEstado: { DISPONIBLE: "DISPONIBLE", RESERVADO: "RESERVADO", VENDIDO: "VENDIDO" },
-  VentaEstado: { PENDIENTE: "PENDIENTE", PAGADA: "PAGADA", ANULADA: "ANULADA" },
   MetodoPago: { EFECTIVO: "EFECTIVO", TRANSFERENCIA: "TRANSFERENCIA", OTRO: "OTRO" },
+  VentaLifecycleError,
+  venderBoletosComoVendedor: (prisma: unknown, params: unknown) =>
+    venderBoletosComoVendedor(prisma, params),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -57,61 +50,49 @@ describe("registrarVenta", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authMock.mockResolvedValue({ user: { id: "vend1", rol: "VENDEDOR", tenantId: "t1" } });
-    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "ACTIVA", precioBoleto: 10 });
-    boletoFindMany.mockResolvedValue([
-      { id: "b1", numero: 1, estado: "DISPONIBLE" },
-      { id: "b2", numero: 2, estado: "DISPONIBLE" },
-    ]);
-    boletoUpdateMany.mockResolvedValue({ count: 2 });
-    ventaCreate.mockResolvedValue({ id: "v1" });
+    venderBoletosComoVendedor.mockResolvedValue({ ventaId: "v1", montoTotal: 20 });
   });
 
   it("rechaza si la sesión no es VENDEDOR", async () => {
     authMock.mockResolvedValue({ user: { id: "u1", rol: "TENANT_ADMIN", tenantId: "t1" } });
     const result = await registrarVenta(undefined, formDataFrom(validFields));
     expect(result?.error).toMatch(/no tiene permiso/i);
-    expect(ventaCreate).not.toHaveBeenCalled();
+    expect(venderBoletosComoVendedor).not.toHaveBeenCalled();
   });
 
   it("rechaza sin nombre de comprador", async () => {
     const result = await registrarVenta(undefined, formDataFrom({ ...validFields, compradorNombre: "" }));
     expect(result?.error).toMatch(/nombre/i);
+    expect(venderBoletosComoVendedor).not.toHaveBeenCalled();
   });
 
   it("rechaza sin boletos seleccionados", async () => {
     const result = await registrarVenta(undefined, formDataFrom({ ...validFields, numeros: [] }));
     expect(result?.error).toMatch(/elegí/i);
+    expect(venderBoletosComoVendedor).not.toHaveBeenCalled();
   });
 
-  it("rechaza si la rifa no está ACTIVA", async () => {
-    rifaFindUnique.mockResolvedValue({ id: "r1", estado: "BORRADOR", precioBoleto: 10 });
+  it("propaga el error del helper compartido (ej. rifa no activa, boleto de otro vendedor)", async () => {
+    venderBoletosComoVendedor.mockRejectedValue(
+      new VentaLifecycleError("El boleto #1 está asignado a otro vendedor"),
+    );
     const result = await registrarVenta(undefined, formDataFrom(validFields));
-    expect(result?.error).toMatch(/activa/i);
+    expect(result?.error).toMatch(/asignado a otro vendedor/);
   });
 
-  it("rechaza si algún boleto ya no está disponible (condición de carrera)", async () => {
-    boletoUpdateMany.mockResolvedValue({ count: 1 });
-    const result = await registrarVenta(undefined, formDataFrom(validFields));
-    expect(result?.error).toMatch(/ya no están disponibles/);
-  });
-
-  it("registra la venta como PAGADA y los boletos como VENDIDO", async () => {
+  it("delega en venderBoletosComoVendedor con los datos del vendedor de la sesión", async () => {
     const result = await registrarVenta(undefined, formDataFrom(validFields));
     expect(result).toBeUndefined();
-    expect(ventaCreate).toHaveBeenCalledWith({
-      data: {
+    expect(venderBoletosComoVendedor).toHaveBeenCalledWith(
+      { __tag: "tenant-prisma" },
+      {
         rifaId: "r1",
         vendedorId: "vend1",
+        numeros: [1, 2],
         compradorNombre: "Juan Pérez",
         compradorTelefono: null,
-        montoTotal: 20,
         metodoPago: "EFECTIVO",
-        estado: "PAGADA",
       },
-    });
-    expect(boletoUpdateMany).toHaveBeenCalledWith({
-      where: { id: { in: ["b1", "b2"] }, estado: "DISPONIBLE" },
-      data: { estado: "VENDIDO", ventaId: "v1" },
-    });
+    );
   });
 });
