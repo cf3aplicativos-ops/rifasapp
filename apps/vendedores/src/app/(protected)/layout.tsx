@@ -1,4 +1,4 @@
-import { LayoutDashboard, Ticket } from "lucide-react";
+import { ArrowLeftRight, LayoutDashboard, Ticket } from "lucide-react";
 import { requireSession } from "@/lib/require-session";
 import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
 import { SignOutButton } from "./sign-out-button";
@@ -6,6 +6,7 @@ import { SignOutButton } from "./sign-out-button";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard /> },
   { href: "/rifas", label: "Rifas", icon: <Ticket /> },
+  { href: "/traspasos", label: "Traspasos", icon: <ArrowLeftRight /> },
 ];
 
 export default async function ProtectedLayout({

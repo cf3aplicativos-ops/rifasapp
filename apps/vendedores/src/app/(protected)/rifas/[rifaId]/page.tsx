@@ -3,6 +3,7 @@ import { expirarVentasVencidas } from "@rifaxapp/db-tenant";
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { PageHeader } from "@rifaxapp/ui/page-header";
 import { requireSession } from "@/lib/require-session";
+import { ConsultaNumero } from "./consulta-numero";
 import { VentaForm } from "./venta-form";
 
 export default async function RifaVendedorPage({
@@ -30,7 +31,13 @@ export default async function RifaVendedorPage({
   const boletos = await prisma.boleto.findMany({
     where: { rifaId },
     orderBy: { numero: "asc" },
-    select: { id: true, numero: true, estado: true },
+    select: {
+      id: true,
+      numero: true,
+      estado: true,
+      asignadoASedeId: true,
+      asignadoAVendedorId: true,
+    },
   });
 
   return (
@@ -39,7 +46,8 @@ export default async function RifaVendedorPage({
         title={rifa.nombre}
         description={`$${rifa.precioBoleto.toString()} por boleto`}
       />
-      <VentaForm rifaId={rifa.id} boletos={boletos} />
+      <ConsultaNumero rifaId={rifa.id} />
+      <VentaForm rifaId={rifa.id} boletos={boletos} vendedorId={session.user.id} />
     </div>
   );
 }

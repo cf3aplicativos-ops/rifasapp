@@ -14,17 +14,26 @@ vi.mock("@rifaxapp/tenant-resolver", () => ({
 // (ver venta-lifecycle.test.ts). Acá solo se prueba la delegación: RBAC,
 // validación de formData, y que el error del helper compartido se propague.
 const venderBoletosComoVendedor = vi.fn();
+const consultarEstadoNumero = vi.fn();
+const solicitarTraspaso = vi.fn();
 class VentaLifecycleError extends Error {}
+class TraspasoError extends Error {}
 vi.mock("@rifaxapp/db-tenant", () => ({
   MetodoPago: { EFECTIVO: "EFECTIVO", TRANSFERENCIA: "TRANSFERENCIA", OTRO: "OTRO" },
   VentaLifecycleError,
+  TraspasoError,
   venderBoletosComoVendedor: (prisma: unknown, params: unknown) =>
     venderBoletosComoVendedor(prisma, params),
+  consultarEstadoNumero: (prisma: unknown, params: unknown) =>
+    consultarEstadoNumero(prisma, params),
+  solicitarTraspaso: (prisma: unknown, params: unknown) => solicitarTraspaso(prisma, params),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const { registrarVenta } = await import("./actions.js");
+const { registrarVenta, consultarNumeroVendedor, solicitarTraspasoVendedor } = await import(
+  "./actions.js"
+);
 
 function formDataFrom(fields: Record<string, string | string[]>) {
   const formData = new FormData();
@@ -94,5 +103,74 @@ describe("registrarVenta", () => {
         metodoPago: "EFECTIVO",
       },
     );
+  });
+});
+
+describe("consultarNumeroVendedor", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authMock.mockResolvedValue({ user: { id: "vend1", rol: "VENDEDOR", tenantId: "t1" } });
+  });
+
+  it("rechaza si la sesión no es VENDEDOR", async () => {
+    authMock.mockResolvedValue({ user: { rol: "TENANT_ADMIN", tenantId: "t1" } });
+    const result = await consultarNumeroVendedor(
+      undefined,
+      formDataFrom({ rifaId: "r1", numero: "5" }),
+    );
+    expect(result && "error" in result ? result.error : undefined).toMatch(/no tiene permiso/i);
+    expect(consultarEstadoNumero).not.toHaveBeenCalled();
+  });
+
+  it("consulta pasando comoVendedorId de la sesión", async () => {
+    consultarEstadoNumero.mockResolvedValue({ tipo: "LIBRE", boletoId: "b1", estado: "DISPONIBLE" });
+    const result = await consultarNumeroVendedor(
+      undefined,
+      formDataFrom({ rifaId: "r1", numero: "5" }),
+    );
+    expect(consultarEstadoNumero).toHaveBeenCalledWith(
+      { __tag: "tenant-prisma" },
+      { rifaId: "r1", numero: 5, comoVendedorId: "vend1" },
+    );
+    expect(result).toMatchObject({ rifaId: "r1", numero: 5 });
+  });
+});
+
+describe("solicitarTraspasoVendedor", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authMock.mockResolvedValue({ user: { id: "vend1", rol: "VENDEDOR", tenantId: "t1" } });
+  });
+
+  it("rechaza si la sesión no es VENDEDOR", async () => {
+    authMock.mockResolvedValue({ user: { rol: "TENANT_ADMIN", tenantId: "t1" } });
+    const result = await solicitarTraspasoVendedor(
+      undefined,
+      formDataFrom({ rifaId: "r1", numero: "5" }),
+    );
+    expect(result?.error).toMatch(/no tiene permiso/i);
+    expect(solicitarTraspaso).not.toHaveBeenCalled();
+  });
+
+  it("delega en solicitarTraspaso con el id del vendedor de la sesión", async () => {
+    solicitarTraspaso.mockResolvedValue({ id: "s1" });
+    const result = await solicitarTraspasoVendedor(
+      undefined,
+      formDataFrom({ rifaId: "r1", numero: "5" }),
+    );
+    expect(solicitarTraspaso).toHaveBeenCalledWith(
+      { __tag: "tenant-prisma" },
+      { rifaId: "r1", numero: 5, solicitanteId: "vend1" },
+    );
+    expect(result?.success).toMatch(/5/);
+  });
+
+  it("propaga un TraspasoError como mensaje legible", async () => {
+    solicitarTraspaso.mockRejectedValue(new TraspasoError("Ese número ya es tuyo"));
+    const result = await solicitarTraspasoVendedor(
+      undefined,
+      formDataFrom({ rifaId: "r1", numero: "5" }),
+    );
+    expect(result?.error).toBe("Ese número ya es tuyo");
   });
 });

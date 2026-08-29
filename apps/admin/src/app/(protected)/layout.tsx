@@ -1,7 +1,9 @@
 import {
+  ArrowLeftRight,
   BarChart3,
   Building2,
   LayoutDashboard,
+  Search,
   Ticket,
   UserRoundCheck,
   Users,
@@ -16,6 +18,15 @@ const TENANT_ADMIN_NAV_ITEMS = [
   { href: "/sedes", label: "Sedes", icon: <Building2 /> },
   { href: "/usuarios", label: "Usuarios", icon: <Users /> },
   { href: "/abonados", label: "Abonados", icon: <UserRoundCheck /> },
+  { href: "/consultas", label: "Consultas", icon: <Search /> },
+];
+
+// Fase 19B: hasta acá un SEDE_ADMIN solo tenía "Dashboard" en el sidebar —
+// primera vez que tiene pantallas propias para hacer algo (pedir un número
+// prestado, resolver lo que le piden a su sede).
+const SEDE_ADMIN_NAV_ITEMS = [
+  { href: "/consultas", label: "Consultas", icon: <Search /> },
+  { href: "/traspasos", label: "Traspasos", icon: <ArrowLeftRight /> },
 ];
 
 export default async function ProtectedLayout({
@@ -25,9 +36,10 @@ export default async function ProtectedLayout({
 }) {
   const session = await requireSession();
   const isTenantAdmin = session.user.rol === "TENANT_ADMIN";
+  const isSedeAdmin = session.user.rol === "SEDE_ADMIN";
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard /> },
-    ...(isTenantAdmin ? TENANT_ADMIN_NAV_ITEMS : []),
+    ...(isTenantAdmin ? TENANT_ADMIN_NAV_ITEMS : isSedeAdmin ? SEDE_ADMIN_NAV_ITEMS : []),
   ];
 
   return (

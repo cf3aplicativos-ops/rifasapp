@@ -5,14 +5,37 @@ import { Button } from "@rifaxapp/ui/button";
 import { formInputClassName } from "@rifaxapp/ui/form-input";
 import { registrarVenta } from "../actions";
 
-type BoletoInfo = { id: string; numero: number; estado: string };
+type BoletoInfo = {
+  id: string;
+  numero: number;
+  estado: string;
+  asignadoASedeId: string | null;
+  asignadoAVendedorId: string | null;
+};
+
+// Fase 19B: un boleto es vendible acá si está DISPONIBLE y, si tiene dueño,
+// el dueño soy yo — mismo criterio que assertBoletosVendibles del lado del
+// servidor (packages/db-tenant/src/venta-lifecycle.ts), pero acá es solo
+// para decidir qué mostrar habilitado, el servidor vuelve a validar todo.
+function motivoNoVendible(b: BoletoInfo, vendedorId: string): string | null {
+  if (b.estado !== "DISPONIBLE") return b.estado;
+  if (b.asignadoAVendedorId && b.asignadoAVendedorId !== vendedorId) {
+    return "asignado a otro vendedor — pedilo prestado arriba";
+  }
+  if (!b.asignadoAVendedorId && b.asignadoASedeId) {
+    return "asignado a la sede — pedilo prestado arriba";
+  }
+  return null;
+}
 
 export function VentaForm({
   rifaId,
   boletos,
+  vendedorId,
 }: {
   rifaId: string;
   boletos: BoletoInfo[];
+  vendedorId: string;
 }) {
   const [state, formAction, isPending] = useActionState(
     registrarVenta,
@@ -33,8 +56,8 @@ export function VentaForm({
     }
   }
 
-  function toggle(numero: number, estado: string) {
-    if (estado !== "DISPONIBLE") return;
+  function toggle(numero: number, vendible: boolean) {
+    if (!vendible) return;
     setSeleccionados((prev) =>
       prev.includes(numero)
         ? prev.filter((n) => n !== numero)
@@ -52,19 +75,28 @@ export function VentaForm({
       <div className="grid grid-cols-8 gap-1 sm:grid-cols-12">
         {boletos.map((b) => {
           const isSelected = seleccionados.includes(b.numero);
+          const motivo = motivoNoVendible(b, vendedorId);
+          const vendible = motivo === null;
+          const esMio = b.asignadoAVendedorId === vendedorId;
           return (
             <button
               type="button"
               key={b.id}
-              disabled={b.estado !== "DISPONIBLE"}
-              onClick={() => toggle(b.numero, b.estado)}
-              title={`Boleto #${b.numero} — ${b.estado}`}
+              disabled={!vendible}
+              onClick={() => toggle(b.numero, vendible)}
+              title={
+                vendible
+                  ? `Boleto #${b.numero}${esMio ? " — tuyo" : ""} — DISPONIBLE`
+                  : `Boleto #${b.numero} — ${motivo}`
+              }
               className={
                 "rounded border px-1 py-1 text-xs " +
                 (isSelected
                   ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900"
-                  : b.estado === "DISPONIBLE"
-                    ? "border-gray-300 dark:border-gray-700"
+                  : vendible
+                    ? esMio
+                      ? "border-brand-600 dark:border-brand-500"
+                      : "border-gray-300 dark:border-gray-700"
                     : "border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-800 dark:bg-gray-900")
               }
             >
