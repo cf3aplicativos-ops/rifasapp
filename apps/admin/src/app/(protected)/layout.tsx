@@ -3,6 +3,7 @@ import {
   Building2,
   LayoutDashboard,
   Ticket,
+  UserRoundCheck,
   Users,
 } from "lucide-react";
 import { requireSession } from "@/lib/require-session";
@@ -14,6 +15,7 @@ const TENANT_ADMIN_NAV_ITEMS = [
   { href: "/reportes", label: "Reportes", icon: <BarChart3 /> },
   { href: "/sedes", label: "Sedes", icon: <Building2 /> },
   { href: "/usuarios", label: "Usuarios", icon: <Users /> },
+  { href: "/abonados", label: "Abonados", icon: <UserRoundCheck /> },
 ];
 
 export default async function ProtectedLayout({
