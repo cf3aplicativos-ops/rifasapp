@@ -34,6 +34,7 @@ export { solicitarTraspaso, resolverTraspaso, TraspasoError } from "./traspaso";
 export type { ResolverTraspasoDecision } from "./traspaso";
 export { consultarEstadoNumero } from "./consulta-numero";
 export type { ConsultaNumeroResultado } from "./consulta-numero";
+export { crearLiquidacion, LiquidacionError } from "./liquidacion";
 export {
   PrismaClient,
   UsuarioRol,
@@ -54,4 +55,5 @@ export type {
   PremioAnticipado,
   Abonado,
   SolicitudTraspaso,
+  Liquidacion,
 } from "./generated/client";

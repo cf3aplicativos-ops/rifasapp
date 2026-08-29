@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@rifaxapp/ui/button";
 import { Card } from "@rifaxapp/ui/card";
 import { formInputClassName } from "@rifaxapp/ui/form-input";
@@ -15,6 +15,7 @@ export function CreateUsuarioForm({
     createUsuario,
     undefined,
   );
+  const [rol, setRol] = useState("SEDE_ADMIN");
 
   return (
     <div className="space-y-3">
@@ -37,7 +38,14 @@ export function CreateUsuarioForm({
             <label htmlFor="rol" className="text-sm font-medium">
               Rol
             </label>
-            <select id="rol" name="rol" required className={formInputClassName}>
+            <select
+              id="rol"
+              name="rol"
+              required
+              value={rol}
+              onChange={(e) => setRol(e.target.value)}
+              className={formInputClassName}
+            >
               <option value="SEDE_ADMIN">SEDE_ADMIN</option>
               <option value="VENDEDOR">VENDEDOR</option>
             </select>
@@ -60,6 +68,23 @@ export function CreateUsuarioForm({
               ))}
             </select>
           </div>
+          {rol === "VENDEDOR" && (
+            <div className="space-y-1">
+              <label htmlFor="comisionPct" className="text-sm font-medium">
+                Comisión % (opcional)
+              </label>
+              <input
+                id="comisionPct"
+                name="comisionPct"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="10"
+                className={`w-24 ${formInputClassName}`}
+              />
+            </div>
+          )}
           <Button type="submit" disabled={isPending}>
             {isPending ? "Invitando…" : "Invitar usuario"}
           </Button>

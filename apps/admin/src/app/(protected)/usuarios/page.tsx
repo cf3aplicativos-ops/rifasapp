@@ -6,6 +6,7 @@ import { PageHeader } from "@rifaxapp/ui/page-header";
 import { Reveal } from "@rifaxapp/ui/reveal";
 import { requireSession } from "@/lib/require-session";
 import { CreateUsuarioForm } from "./create-usuario-form";
+import { UsuarioRow } from "./usuario-row";
 
 export default async function UsuariosPage() {
   const session = await requireSession();
@@ -50,23 +51,28 @@ export default async function UsuariosPage() {
                 <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
                   Sede
                 </th>
+                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                  Comisión
+                </th>
               </tr>
             </thead>
             <tbody>
               {usuarios.map((usuario) => (
-                <tr
+                <UsuarioRow
                   key={usuario.id}
-                  className="border-b border-gray-100 last:border-0 dark:border-gray-900"
-                >
-                  <td className="px-6 py-3 font-mono">{usuario.email}</td>
-                  <td className="px-6 py-3">{usuario.rol}</td>
-                  <td className="px-6 py-3">{usuario.sede?.nombre ?? "—"}</td>
-                </tr>
+                  usuario={{
+                    id: usuario.id,
+                    email: usuario.email,
+                    rol: usuario.rol,
+                    sedeNombre: usuario.sede?.nombre ?? null,
+                    comisionPct: usuario.comisionPct != null ? Number(usuario.comisionPct) : null,
+                  }}
+                />
               ))}
               {usuarios.length === 0 && (
                 <tr>
                   <td
-                    colSpan={3}
+                    colSpan={4}
                     className="px-6 py-6 text-center text-gray-500 dark:text-gray-400"
                   >
                     Todavía no hay usuarios además del admin.

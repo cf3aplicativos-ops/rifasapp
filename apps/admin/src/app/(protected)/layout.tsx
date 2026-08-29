@@ -7,6 +7,7 @@ import {
   Ticket,
   UserRoundCheck,
   Users,
+  Wallet,
 } from "lucide-react";
 import { requireSession } from "@/lib/require-session";
 import { SidebarShell } from "@rifaxapp/ui/sidebar-shell";
@@ -19,6 +20,7 @@ const TENANT_ADMIN_NAV_ITEMS = [
   { href: "/usuarios", label: "Usuarios", icon: <Users /> },
   { href: "/abonados", label: "Abonados", icon: <UserRoundCheck /> },
   { href: "/consultas", label: "Consultas", icon: <Search /> },
+  { href: "/liquidaciones", label: "Liquidaciones", icon: <Wallet /> },
 ];
 
 // Fase 19B: hasta acá un SEDE_ADMIN solo tenía "Dashboard" en el sidebar —

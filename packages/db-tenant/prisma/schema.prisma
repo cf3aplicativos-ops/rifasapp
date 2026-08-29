@@ -94,22 +94,27 @@ model Sede {
 }
 
 model Usuario {
-  id                    String              @id @default(uuid())
-  email                 String              @unique
-  passwordHash          String
-  nombre                String?
-  rol                   UsuarioRol
-  sedeId                String?
-  sede                  Sede?               @relation(fields: [sedeId], references: [id])
-  rifasCreadas          Rifa[]              @relation("RifaCreador")
-  ventasComoVendedor    Venta[]             @relation("VentaVendedor")
-  ventasComoCliente     Venta[]             @relation("VentaCliente")
-  boletosAsignados      Boleto[]            @relation("BoletoAsignadoVendedor")
-  traspasosSolicitados  SolicitudTraspaso[] @relation("TraspasoSolicitante")
-  traspasosComoPoseedor SolicitudTraspaso[] @relation("TraspasoPoseedorVendedor")
-  traspasosResueltos    SolicitudTraspaso[] @relation("TraspasoResueltoPor")
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
+  id                        String              @id @default(uuid())
+  email                     String              @unique
+  passwordHash              String
+  nombre                    String?
+  rol                       UsuarioRol
+  sedeId                    String?
+  sede                      Sede?               @relation(fields: [sedeId], references: [id])
+  rifasCreadas              Rifa[]              @relation("RifaCreador")
+  ventasComoVendedor        Venta[]             @relation("VentaVendedor")
+  ventasComoCliente         Venta[]             @relation("VentaCliente")
+  boletosAsignados          Boleto[]            @relation("BoletoAsignadoVendedor")
+  traspasosSolicitados      SolicitudTraspaso[] @relation("TraspasoSolicitante")
+  traspasosComoPoseedor     SolicitudTraspaso[] @relation("TraspasoPoseedorVendedor")
+  traspasosResueltos        SolicitudTraspaso[] @relation("TraspasoResueltoPor")
+  // Fase 19C: % de comisión propio del vendedor — null = todavía no
+  // configurado (liquidar exige que esté seteado, no se asume 0%).
+  comisionPct               Decimal?            @db.Decimal(5, 2)
+  liquidacionesGeneradas    Liquidacion[]       @relation("LiquidacionGeneradaPor")
+  liquidacionesComoVendedor Liquidacion[]       @relation("LiquidacionVendedor")
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
 }
 
 model Rifa {
@@ -217,19 +222,44 @@ model SolicitudTraspaso {
 }
 
 model Venta {
-  id                String      @id @default(uuid())
+  id                String       @id @default(uuid())
   rifaId            String
-  rifa              Rifa        @relation(fields: [rifaId], references: [id])
+  rifa              Rifa         @relation(fields: [rifaId], references: [id])
   vendedorId        String?
-  vendedor          Usuario?    @relation("VentaVendedor", fields: [vendedorId], references: [id])
+  vendedor          Usuario?     @relation("VentaVendedor", fields: [vendedorId], references: [id])
   clienteId         String?
-  cliente           Usuario?    @relation("VentaCliente", fields: [clienteId], references: [id])
+  cliente           Usuario?     @relation("VentaCliente", fields: [clienteId], references: [id])
   compradorNombre   String?
   compradorTelefono String?
-  montoTotal        Decimal     @db.Decimal(12, 2)
+  montoTotal        Decimal      @db.Decimal(12, 2)
   metodoPago        MetodoPago
-  estado            VentaEstado @default(PENDIENTE)
+  estado            VentaEstado  @default(PENDIENTE)
   boletos           Boleto[]
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  // Fase 19C: qué ventas ya quedaron cubiertas por una liquidación de
+  // comisión — null = todavía pendiente de liquidar.
+  liquidacionId     String?
+  liquidacion       Liquidacion? @relation(fields: [liquidacionId], references: [id])
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+// Fase 19C: registro contable de una liquidación de comisión — inmutable,
+// snapshotea el % usado al momento de liquidar (si el admin cambia el % del
+// vendedor después, las liquidaciones viejas no se recalculan). El pago en
+// sí lo hace el admin por fuera del sistema, igual que ya pasa con ventas
+// en efectivo — esto solo registra que ese período quedó liquidado.
+model Liquidacion {
+  id             String   @id @default(uuid())
+  vendedorId     String
+  vendedor       Usuario  @relation("LiquidacionVendedor", fields: [vendedorId], references: [id])
+  periodoDesde   DateTime
+  periodoHasta   DateTime
+  comisionPct    Decimal  @db.Decimal(5, 2)
+  montoVentas    Decimal  @db.Decimal(12, 2)
+  montoComision  Decimal  @db.Decimal(12, 2)
+  cantidadVentas Int
+  generadaPorId  String
+  generadaPor    Usuario  @relation("LiquidacionGeneradaPor", fields: [generadaPorId], references: [id])
+  createdAt      DateTime @default(now())
+  ventas         Venta[]
 }
