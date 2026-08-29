@@ -4,25 +4,25 @@
     {
       "name": "superadmin",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/superadmin"],
+      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/superadmin", "--node-options=--use-system-ca"],
       "port": 3000
     },
     {
       "name": "admin",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/admin"],
+      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/admin", "--node-options=--use-system-ca"],
       "port": 3001
     },
     {
       "name": "vendedores",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/vendedores"],
+      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/vendedores", "--node-options=--use-system-ca"],
       "port": 3002
     },
     {
       "name": "clientes",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/clientes"],
+      "runtimeArgs": ["run", "dev", "--workspace=@rifaxapp/clientes", "--node-options=--use-system-ca"],
       "port": 3003
     }
   ]
