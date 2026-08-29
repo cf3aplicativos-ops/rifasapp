@@ -110,6 +110,12 @@ export default async function RifaDetailPage({
         >
           Premios anticipados
         </Link>
+        <Link
+          href={`/rifas/${rifa.id}/asignaciones`}
+          className="inline-block text-sm underline"
+        >
+          Asignación de boletos
+        </Link>
       </div>
 
       {rifa.estado === "ACTIVA" && <CerrarRifaForm rifaId={rifa.id} />}
