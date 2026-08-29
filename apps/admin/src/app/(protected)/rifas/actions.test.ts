@@ -27,6 +27,9 @@ vi.mock("@rifaxapp/tenant-resolver", () => ({
 vi.mock("@rifaxapp/db-tenant", () => ({
   RifaEstado: { BORRADOR: "BORRADOR", ACTIVA: "ACTIVA", CERRADA: "CERRADA", CANCELADA: "CANCELADA" },
   BoletoEstado: { DISPONIBLE: "DISPONIBLE", RESERVADO: "RESERVADO", VENDIDO: "VENDIDO" },
+  RifaFormatoDigitos: { DOS: "DOS", TRES: "TRES", CUATRO: "CUATRO" },
+  CANTIDAD_MAXIMA_POR_FORMATO: { DOS: 100, TRES: 1000, CUATRO: 10000 },
+  numeroInicialBoleto: (formato: string | null) => (formato ? 0 : 1),
   confirmarPagoDeVenta: (prisma: unknown, ventaId: string) => confirmarPagoDeVenta(prisma, ventaId),
   anularVentaPendiente: (prisma: unknown, ventaId: string) => anularVentaPendiente(prisma, ventaId),
 }));
@@ -84,7 +87,7 @@ describe("crearRifa", () => {
     expect(result?.error).toMatch(/2000/);
   });
 
-  it("crea la rifa en BORRADOR con el creador de la sesión", async () => {
+  it("crea la rifa en BORRADOR con el creador de la sesión, sin formato de dígitos por default", async () => {
     const result = await crearRifa(undefined, formDataFrom(validFields));
     expect(result).toBeUndefined();
     expect(rifaCreate).toHaveBeenCalledWith({
@@ -93,8 +96,38 @@ describe("crearRifa", () => {
         descripcion: null,
         precioBoleto: 10,
         cantidadBoletos: 100,
+        formatoDigitos: null,
         creadoPorId: "u1",
       },
+    });
+  });
+
+  it("rechaza un formato de dígitos inválido", async () => {
+    const result = await crearRifa(
+      undefined,
+      formDataFrom({ ...validFields, formatoDigitos: "CINCO" }),
+    );
+    expect(result?.error).toMatch(/formato/i);
+    expect(rifaCreate).not.toHaveBeenCalled();
+  });
+
+  it("rechaza una cantidad de boletos por encima del rango del formato elegido", async () => {
+    const result = await crearRifa(
+      undefined,
+      formDataFrom({ ...validFields, cantidadBoletos: "150", formatoDigitos: "DOS" }),
+    );
+    expect(result?.error).toMatch(/100/);
+    expect(rifaCreate).not.toHaveBeenCalled();
+  });
+
+  it("acepta un formato de dígitos válido dentro de su rango", async () => {
+    const result = await crearRifa(
+      undefined,
+      formDataFrom({ ...validFields, cantidadBoletos: "50", formatoDigitos: "DOS" }),
+    );
+    expect(result).toBeUndefined();
+    expect(rifaCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ formatoDigitos: "DOS", cantidadBoletos: 50 }),
     });
   });
 });
@@ -111,7 +144,7 @@ describe("activarRifa", () => {
     expect(boletoCreateMany).not.toHaveBeenCalled();
   });
 
-  it("genera los boletos 1..N y activa la rifa", async () => {
+  it("genera los boletos 1..N (sin formato) y activa la rifa", async () => {
     rifaFindUnique.mockResolvedValue({ id: "r1", estado: "BORRADOR", cantidadBoletos: 3 });
     await activarRifa("r1");
     expect(boletoCreateMany).toHaveBeenCalledWith({
@@ -122,6 +155,23 @@ describe("activarRifa", () => {
       ],
     });
     expect(rifaUpdate).toHaveBeenCalledWith({ where: { id: "r1" }, data: { estado: "ACTIVA" } });
+  });
+
+  it("genera los boletos 0..N-1 cuando la rifa tiene formato de dígitos", async () => {
+    rifaFindUnique.mockResolvedValue({
+      id: "r1",
+      estado: "BORRADOR",
+      cantidadBoletos: 3,
+      formatoDigitos: "DOS",
+    });
+    await activarRifa("r1");
+    expect(boletoCreateMany).toHaveBeenCalledWith({
+      data: [
+        { rifaId: "r1", numero: 0 },
+        { rifaId: "r1", numero: 1 },
+        { rifaId: "r1", numero: 2 },
+      ],
+    });
   });
 });
 

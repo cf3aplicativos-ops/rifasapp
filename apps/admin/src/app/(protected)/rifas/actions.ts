@@ -5,6 +5,9 @@ import { assertRole } from "@rifaxapp/auth";
 import {
   RifaEstado,
   BoletoEstado,
+  RifaFormatoDigitos,
+  CANTIDAD_MAXIMA_POR_FORMATO,
+  numeroInicialBoleto,
   confirmarPagoDeVenta as confirmarPagoDeVentaShared,
   anularVentaPendiente as anularVentaPendienteShared,
 } from "@rifaxapp/db-tenant";
@@ -16,6 +19,12 @@ import { auth } from "@/auth";
 // grilla de selección en vendedores/clientes se mantengan rápidas. Se puede
 // subir más adelante si hace falta una rifa más grande.
 const MAX_BOLETOS = 2000;
+
+// Fase 19A: el formato de dígitos es opcional — una rifa sin formato se
+// comporta exactamente como antes (numeración 1..cantidadBoletos, sin
+// límite propio más allá de MAX_BOLETOS). Solo si el admin elige un
+// formato se valida el rango que ese formato permite.
+const FORMATOS_VALIDOS = Object.values(RifaFormatoDigitos);
 
 export type CreateRifaState = { error?: string } | undefined;
 
@@ -34,6 +43,7 @@ export async function crearRifa(
   const descripcion = String(formData.get("descripcion") ?? "").trim();
   const precioBoletoRaw = String(formData.get("precioBoleto") ?? "").trim();
   const cantidadBoletosRaw = String(formData.get("cantidadBoletos") ?? "").trim();
+  const formatoDigitosRaw = String(formData.get("formatoDigitos") ?? "").trim();
 
   if (!nombre) {
     return { error: "El nombre es obligatorio" };
@@ -52,6 +62,21 @@ export async function crearRifa(
     return { error: `La cantidad de boletos no puede superar ${MAX_BOLETOS}` };
   }
 
+  // "" = sin formato (compatibilidad con rifas legacy) — no es un error.
+  let formatoDigitos: RifaFormatoDigitos | null = null;
+  if (formatoDigitosRaw) {
+    if (!FORMATOS_VALIDOS.includes(formatoDigitosRaw as RifaFormatoDigitos)) {
+      return { error: "Formato de dígitos inválido" };
+    }
+    formatoDigitos = formatoDigitosRaw as RifaFormatoDigitos;
+    const maximo = CANTIDAD_MAXIMA_POR_FORMATO[formatoDigitos];
+    if (cantidadBoletos > maximo) {
+      return {
+        error: `Con formato de ${formatoDigitos.toLowerCase()} dígitos, la cantidad de boletos no puede superar ${maximo}`,
+      };
+    }
+  }
+
   const prisma = await getTenantPrismaClient(session.user.tenantId);
   await prisma.rifa.create({
     data: {
@@ -59,6 +84,7 @@ export async function crearRifa(
       descripcion: descripcion || null,
       precioBoleto,
       cantidadBoletos,
+      formatoDigitos,
       creadoPorId: session.user.id,
     },
   });
@@ -77,11 +103,12 @@ export async function activarRifa(rifaId: string) {
     throw new Error("Solo se puede activar una rifa en estado BORRADOR");
   }
 
+  const inicio = numeroInicialBoleto(rifa.formatoDigitos);
   await prisma.$transaction([
     prisma.boleto.createMany({
       data: Array.from({ length: rifa.cantidadBoletos }, (_, i) => ({
         rifaId: rifa.id,
-        numero: i + 1,
+        numero: inicio + i,
       })),
     }),
     prisma.rifa.update({ where: { id: rifa.id }, data: { estado: RifaEstado.ACTIVA } }),

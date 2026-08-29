@@ -16,6 +16,7 @@
 // - 20260827110242_add_rifa_boleto_venta (Rifa, Boleto, Venta)
 // - 20260827124558_add_venta_vencida (VentaEstado.VENCIDA)
 // - 20260827153120_add_metodo_pago_wompi (MetodoPago.WOMPI)
+// - 20260828100000_add_formato_digitos_premios (Fase 19A: Rifa.formatoDigitos, PremioAnticipado)
 export const TENANT_SCHEMA_SQL = `
 -- CreateEnum
 CREATE TYPE "UsuarioRol" AS ENUM ('TENANT_ADMIN', 'SEDE_ADMIN', 'VENDEDOR', 'CLIENTE');
@@ -140,4 +141,31 @@ ALTER TYPE "VentaEstado" ADD VALUE 'VENCIDA';
 
 -- AlterEnum
 ALTER TYPE "MetodoPago" ADD VALUE 'WOMPI';
+
+-- CreateEnum
+CREATE TYPE "RifaFormatoDigitos" AS ENUM ('DOS', 'TRES', 'CUATRO');
+
+-- AlterTable
+ALTER TABLE "Rifa" ADD COLUMN     "formatoDigitos" "RifaFormatoDigitos";
+
+-- CreateTable
+CREATE TABLE "PremioAnticipado" (
+    "id" TEXT NOT NULL,
+    "rifaId" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "descripcion" TEXT,
+    "numero" INTEGER NOT NULL,
+    "entregado" BOOLEAN NOT NULL DEFAULT false,
+    "entregadoAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PremioAnticipado_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PremioAnticipado_rifaId_numero_key" ON "PremioAnticipado"("rifaId", "numero");
+
+-- AddForeignKey
+ALTER TABLE "PremioAnticipado" ADD CONSTRAINT "PremioAnticipado_rifaId_fkey" FOREIGN KEY ("rifaId") REFERENCES "Rifa"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 `;

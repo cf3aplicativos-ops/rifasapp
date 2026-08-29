@@ -24,6 +24,12 @@ const ESTADO_TONE: Record<string, BadgeTone> = {
   CANCELADA: "red",
 };
 
+const FORMATO_LABEL: Record<string, string> = {
+  DOS: "2 dígitos (00-99)",
+  TRES: "3 dígitos (000-999)",
+  CUATRO: "4 dígitos (0000-9999)",
+};
+
 export default async function RifasPage() {
   const session = await requireSession();
   if (session.user.rol !== "TENANT_ADMIN") {
@@ -54,6 +60,9 @@ export default async function RifasPage() {
                   Boletos
                 </th>
                 <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
+                  Formato
+                </th>
+                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
                   Estado
                 </th>
                 <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
@@ -74,6 +83,9 @@ export default async function RifasPage() {
                   </td>
                   <td className="px-6 py-3">${rifa.precioBoleto.toString()}</td>
                   <td className="px-6 py-3">{rifa.cantidadBoletos}</td>
+                  <td className="px-6 py-3 text-gray-500 dark:text-gray-400">
+                    {FORMATO_LABEL[rifa.formatoDigitos ?? ""] ?? "Sin formato"}
+                  </td>
                   <td className="px-6 py-3">
                     <Badge tone={ESTADO_TONE[rifa.estado] ?? "gray"}>
                       {ESTADO_LABEL[rifa.estado] ?? rifa.estado}
@@ -87,7 +99,7 @@ export default async function RifasPage() {
               {rifas.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-6 py-6 text-center text-gray-500 dark:text-gray-400"
                   >
                     Todavía no hay rifas.

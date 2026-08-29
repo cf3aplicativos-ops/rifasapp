@@ -65,6 +65,22 @@ export function CreateRifaForm() {
             className={`w-28 ${formInputClassName}`}
           />
         </div>
+        <div className="space-y-1">
+          <label htmlFor="formatoDigitos" className="text-sm font-medium">
+            Formato de dígitos
+          </label>
+          <select
+            id="formatoDigitos"
+            name="formatoDigitos"
+            defaultValue=""
+            className={formInputClassName}
+          >
+            <option value="">Sin formato (número plano)</option>
+            <option value="DOS">2 dígitos (00-99)</option>
+            <option value="TRES">3 dígitos (000-999)</option>
+            <option value="CUATRO">4 dígitos (0000-9999)</option>
+          </select>
+        </div>
         <Button type="submit" disabled={isPending}>
           {isPending ? "Creando…" : "Crear rifa"}
         </Button>

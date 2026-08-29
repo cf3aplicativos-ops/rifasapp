@@ -18,11 +18,23 @@ export {
 } from "./dashboard-metrics";
 export type { VentaMetrica } from "./dashboard-metrics";
 export {
+  CANTIDAD_MAXIMA_POR_FORMATO,
+  numeroInicialBoleto,
+} from "./boleto-format";
+export {
   PrismaClient,
   UsuarioRol,
   RifaEstado,
   BoletoEstado,
   VentaEstado,
   MetodoPago,
+  RifaFormatoDigitos,
 } from "./generated/client";
-export type { Sede, Usuario, Rifa, Boleto, Venta } from "./generated/client";
+export type {
+  Sede,
+  Usuario,
+  Rifa,
+  Boleto,
+  Venta,
+  PremioAnticipado,
+} from "./generated/client";

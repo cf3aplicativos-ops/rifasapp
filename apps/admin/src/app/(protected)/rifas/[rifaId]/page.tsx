@@ -8,6 +8,7 @@ import { PageHeader } from "@rifaxapp/ui/page-header";
 import { ProgressBar } from "@rifaxapp/ui/progress-bar";
 import { Reveal } from "@rifaxapp/ui/reveal";
 import { Stat, StatGrid } from "@rifaxapp/ui/stat";
+import { formatNumeroBoleto, type BoletoFormatoDigitos } from "@rifaxapp/ui/boleto-format";
 import { requireSession } from "@/lib/require-session";
 import { CerrarRifaForm } from "./cerrar-rifa-form";
 
@@ -96,19 +97,34 @@ export default async function RifaDetailPage({
         />
       </Reveal>
 
-      <Link
-        href={`/rifas/${rifa.id}/ventas`}
-        className="inline-block text-sm underline"
-      >
-        Ver ventas
-      </Link>
+      <div className="flex flex-wrap gap-4">
+        <Link
+          href={`/rifas/${rifa.id}/ventas`}
+          className="inline-block text-sm underline"
+        >
+          Ver ventas
+        </Link>
+        <Link
+          href={`/rifas/${rifa.id}/premios`}
+          className="inline-block text-sm underline"
+        >
+          Premios anticipados
+        </Link>
+      </div>
 
       {rifa.estado === "ACTIVA" && <CerrarRifaForm rifaId={rifa.id} />}
 
       {rifa.estado === "CERRADA" && rifa.boletoGanador && (
         <p className="text-sm">
-          Boleto ganador: <strong>#{rifa.boletoGanador.numero}</strong> —
-          sorteado el {rifa.fechaSorteo?.toLocaleDateString("es")}
+          Boleto ganador:{" "}
+          <strong>
+            #
+            {formatNumeroBoleto(
+              rifa.boletoGanador.numero,
+              rifa.formatoDigitos as BoletoFormatoDigitos | null,
+            )}
+          </strong>{" "}
+          — sorteado el {rifa.fechaSorteo?.toLocaleDateString("es")}
         </p>
       )}
     </div>
