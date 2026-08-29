@@ -5,9 +5,10 @@ import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { Card } from "@rifaxapp/ui/card";
 import { PageHeader } from "@rifaxapp/ui/page-header";
 import { Reveal } from "@rifaxapp/ui/reveal";
-import { formatNumeroBoleto, type BoletoFormatoDigitos } from "@rifaxapp/ui/boleto-format";
+import { type BoletoFormatoDigitos } from "@rifaxapp/ui/boleto-format";
 import { requireSession } from "@/lib/require-session";
 import { AsignarBoletosForm } from "./asignar-boletos-form";
+import { AsignacionesBoard } from "./asignaciones-board";
 
 export default async function AsignacionesPage({
   params,
@@ -38,12 +39,15 @@ export default async function AsignacionesPage({
   ]);
 
   const formato = rifa.formatoDigitos as BoletoFormatoDigitos | null;
-  const MODO_LABEL: Record<string, string> = {
-    CONSECUTIVO: "Consecutivo",
-    ALEATORIO: "Aleatorio",
-    ABONADOS: "Abonados",
-    TRASPASO: "Traspaso",
-  };
+  const asignadosParaBoard = asignados.map((b) => ({
+    id: b.id,
+    numero: b.numero,
+    estado: b.estado,
+    sedeId: b.asignadoASedeId,
+    sedeNombre: b.asignadoASede?.nombre ?? null,
+    vendedorId: b.asignadoAVendedorId,
+    vendedorNombre: b.asignadoAVendedor?.nombre ?? b.asignadoAVendedor?.email ?? null,
+  }));
 
   return (
     <div className="space-y-6">
@@ -74,57 +78,7 @@ export default async function AsignacionesPage({
       )}
 
       <Reveal>
-        <Card className="p-0">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-800">
-                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
-                  Número
-                </th>
-                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
-                  Dueño
-                </th>
-                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
-                  Modo
-                </th>
-                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">
-                  Estado
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {asignados.map((boleto) => (
-                <tr
-                  key={boleto.id}
-                  className="border-b border-gray-100 last:border-0 dark:border-gray-900"
-                >
-                  <td className="px-6 py-3 font-mono">
-                    #{formatNumeroBoleto(boleto.numero, formato)}
-                  </td>
-                  <td className="px-6 py-3">
-                    {boleto.asignadoASede
-                      ? `Sede: ${boleto.asignadoASede.nombre}`
-                      : (boleto.asignadoAVendedor?.nombre ?? boleto.asignadoAVendedor?.email)}
-                  </td>
-                  <td className="px-6 py-3 text-gray-500 dark:text-gray-400">
-                    {boleto.asignacionModo ? MODO_LABEL[boleto.asignacionModo] : "—"}
-                  </td>
-                  <td className="px-6 py-3 text-gray-500 dark:text-gray-400">{boleto.estado}</td>
-                </tr>
-              ))}
-              {asignados.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-6 py-6 text-center text-gray-500 dark:text-gray-400"
-                  >
-                    Todavía no hay boletos asignados en esta rifa.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </Card>
+        <AsignacionesBoard asignados={asignadosParaBoard} formato={formato} />
       </Reveal>
     </div>
   );
