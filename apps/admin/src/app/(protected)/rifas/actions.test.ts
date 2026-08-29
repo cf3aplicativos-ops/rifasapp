@@ -6,13 +6,27 @@ vi.mock("@/auth", () => ({ auth: () => authMock() }));
 const rifaFindUnique = vi.fn();
 const rifaCreate = vi.fn();
 const rifaUpdate = vi.fn();
+const premioAnticipadoCreateMany = vi.fn();
 const boletoCreateMany = vi.fn();
 const boletoFindUnique = vi.fn();
 const boletoUpdateMany = vi.fn();
 const ventaFindUnique = vi.fn();
-const transaction = vi.fn().mockResolvedValue(undefined);
 const confirmarPagoDeVenta = vi.fn().mockResolvedValue(undefined);
 const anularVentaPendiente = vi.fn().mockResolvedValue(undefined);
+
+// $transaction se usa en dos formas distintas acá: array de promesas ya
+// disparadas (activarRifa, sobre `prisma` directo) y callback interactivo
+// (crearRifa, sobre un `tx` — necesita invocar el callback de verdad para
+// que rifaCreate/premioAnticipadoCreateMany se registren).
+const transaction = vi.fn((arg: unknown) => {
+  if (typeof arg === "function") {
+    return arg({
+      rifa: { create: rifaCreate },
+      premioAnticipado: { createMany: premioAnticipadoCreateMany },
+    });
+  }
+  return Promise.resolve(undefined);
+});
 
 const getTenantPrismaClient = vi.fn().mockResolvedValue({
   rifa: { findUnique: rifaFindUnique, create: rifaCreate, update: rifaUpdate },
@@ -46,9 +60,15 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const { crearRifa, activarRifa, cancelarRifa, cerrarRifa, confirmarPagoVenta, anularVenta } =
   await import("./actions.js");
 
-function formDataFrom(fields: Record<string, string>) {
+function formDataFrom(fields: Record<string, string | string[]>) {
   const formData = new FormData();
-  for (const [key, value] of Object.entries(fields)) formData.set(key, value);
+  for (const [key, value] of Object.entries(fields)) {
+    if (Array.isArray(value)) {
+      for (const v of value) formData.append(key, v);
+    } else {
+      formData.set(key, value);
+    }
+  }
   return formData;
 }
 
@@ -111,24 +131,88 @@ describe("crearRifa", () => {
     expect(rifaCreate).not.toHaveBeenCalled();
   });
 
-  it("rechaza una cantidad de boletos por encima del rango del formato elegido", async () => {
+  it("con formato elegido, ignora la cantidadBoletos enviada y usa el rango completo del formato", async () => {
     const result = await crearRifa(
       undefined,
       formDataFrom({ ...validFields, cantidadBoletos: "150", formatoDigitos: "DOS" }),
     );
-    expect(result?.error).toMatch(/100/);
-    expect(rifaCreate).not.toHaveBeenCalled();
+    expect(result).toBeUndefined();
+    expect(rifaCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ formatoDigitos: "DOS", cantidadBoletos: 100 }),
+    });
   });
 
-  it("acepta un formato de dígitos válido dentro de su rango", async () => {
+  it("formato CUATRO da 10000 boletos, por encima de MAX_BOLETOS (que solo aplica sin formato)", async () => {
     const result = await crearRifa(
       undefined,
-      formDataFrom({ ...validFields, cantidadBoletos: "50", formatoDigitos: "DOS" }),
+      formDataFrom({ ...validFields, formatoDigitos: "CUATRO" }),
     );
     expect(result).toBeUndefined();
     expect(rifaCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ formatoDigitos: "DOS", cantidadBoletos: 50 }),
+      data: expect.objectContaining({ formatoDigitos: "CUATRO", cantidadBoletos: 10000 }),
     });
+  });
+
+  it("crea premios anticipados junto con la rifa", async () => {
+    rifaCreate.mockResolvedValue({ id: "r1" });
+    const result = await crearRifa(
+      undefined,
+      formDataFrom({
+        ...validFields,
+        formatoDigitos: "DOS",
+        premioNombre: ["Televisor", "Celular"],
+        premioNumero: ["7", "42"],
+      }),
+    );
+    expect(result).toBeUndefined();
+    expect(premioAnticipadoCreateMany).toHaveBeenCalledWith({
+      data: [
+        { rifaId: "r1", nombre: "Televisor", numero: 7 },
+        { rifaId: "r1", nombre: "Celular", numero: 42 },
+      ],
+    });
+  });
+
+  it("ignora filas de premio sin nombre (fila vacía sin usar)", async () => {
+    rifaCreate.mockResolvedValue({ id: "r1" });
+    await crearRifa(
+      undefined,
+      formDataFrom({
+        ...validFields,
+        formatoDigitos: "DOS",
+        premioNombre: [""],
+        premioNumero: ["7"],
+      }),
+    );
+    expect(premioAnticipadoCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("rechaza un número de premio fuera del rango de la rifa", async () => {
+    const result = await crearRifa(
+      undefined,
+      formDataFrom({
+        ...validFields,
+        formatoDigitos: "DOS",
+        premioNombre: ["Televisor"],
+        premioNumero: ["150"],
+      }),
+    );
+    expect(result?.error).toMatch(/entre 0 y 99/);
+    expect(rifaCreate).not.toHaveBeenCalled();
+  });
+
+  it("rechaza dos premios con el mismo número", async () => {
+    const result = await crearRifa(
+      undefined,
+      formDataFrom({
+        ...validFields,
+        formatoDigitos: "DOS",
+        premioNombre: ["Televisor", "Celular"],
+        premioNumero: ["7", "7"],
+      }),
+    );
+    expect(result?.error).toMatch(/mismo número/i);
+    expect(rifaCreate).not.toHaveBeenCalled();
   });
 });
 

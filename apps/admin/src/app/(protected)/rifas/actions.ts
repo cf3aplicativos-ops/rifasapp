@@ -15,9 +15,10 @@ import { notificarGanador, notificarPagoConfirmado } from "@rifaxapp/notificatio
 import { getTenantPrismaClient } from "@rifaxapp/tenant-resolver";
 import { auth } from "@/auth";
 
-// Tope arbitrario para que la generación de boletos (bulk createMany) y la
-// grilla de selección en vendedores/clientes se mantengan rápidas. Se puede
-// subir más adelante si hace falta una rifa más grande.
+// Tope arbitrario, solo para rifas SIN formato de dígitos (legacy) — con
+// formato, la cantidad de boletos es siempre el rango completo del formato
+// elegido (100/1000/10000, ver CANTIDAD_MAXIMA_POR_FORMATO), que puede
+// superar este número a propósito (ej. 4 dígitos = 10000 boletos).
 const MAX_BOLETOS = 2000;
 
 // Fase 19A: el formato de dígitos es opcional — una rifa sin formato se
@@ -54,14 +55,6 @@ export async function crearRifa(
     return { error: "El precio del boleto debe ser un número mayor a 0" };
   }
 
-  const cantidadBoletos = Number(cantidadBoletosRaw);
-  if (!Number.isInteger(cantidadBoletos) || cantidadBoletos <= 0) {
-    return { error: "La cantidad de boletos debe ser un entero mayor a 0" };
-  }
-  if (cantidadBoletos > MAX_BOLETOS) {
-    return { error: `La cantidad de boletos no puede superar ${MAX_BOLETOS}` };
-  }
-
   // "" = sin formato (compatibilidad con rifas legacy) — no es un error.
   let formatoDigitos: RifaFormatoDigitos | null = null;
   if (formatoDigitosRaw) {
@@ -69,24 +62,68 @@ export async function crearRifa(
       return { error: "Formato de dígitos inválido" };
     }
     formatoDigitos = formatoDigitosRaw as RifaFormatoDigitos;
-    const maximo = CANTIDAD_MAXIMA_POR_FORMATO[formatoDigitos];
-    if (cantidadBoletos > maximo) {
-      return {
-        error: `Con formato de ${formatoDigitos.toLowerCase()} dígitos, la cantidad de boletos no puede superar ${maximo}`,
-      };
+  }
+
+  // Con formato, la cantidad de boletos SIEMPRE es el rango completo (00-99,
+  // 000-999, 0000-9999) — se calcula acá, no se confía en lo que mandó el
+  // cliente (el formulario ya lo manda de solo lectura, esto es defensa en
+  // profundidad). MAX_BOLETOS solo aplica a rifas legacy sin formato, donde
+  // la cantidad sigue siendo un número libre elegido a mano.
+  let cantidadBoletos: number;
+  if (formatoDigitos) {
+    cantidadBoletos = CANTIDAD_MAXIMA_POR_FORMATO[formatoDigitos];
+  } else {
+    cantidadBoletos = Number(cantidadBoletosRaw);
+    if (!Number.isInteger(cantidadBoletos) || cantidadBoletos <= 0) {
+      return { error: "La cantidad de boletos debe ser un entero mayor a 0" };
+    }
+    if (cantidadBoletos > MAX_BOLETOS) {
+      return { error: `La cantidad de boletos no puede superar ${MAX_BOLETOS}` };
     }
   }
 
+  // Premios anticipados definidos en el mismo formulario de creación (antes
+  // había que ir a /rifas/[rifaId]/premios después de crear la rifa; ahora
+  // se pueden cargar de una, esa pantalla sigue existiendo para agregar más
+  // o editarlos más adelante). Filas vacías (sin nombre) se ignoran.
+  const premioNombres = formData.getAll("premioNombre").map((v) => String(v).trim());
+  const premioNumerosRaw = formData.getAll("premioNumero").map((v) => String(v).trim());
+  const inicio = numeroInicialBoleto(formatoDigitos);
+  const fin = inicio + cantidadBoletos - 1;
+
+  const premios: { nombre: string; numero: number }[] = [];
+  const numerosVistos = new Set<number>();
+  for (let i = 0; i < premioNombres.length; i++) {
+    const premioNombre = premioNombres[i];
+    if (!premioNombre) continue; // fila sin usar
+    const numero = Number(premioNumerosRaw[i]);
+    if (!Number.isInteger(numero) || numero < inicio || numero > fin) {
+      return { error: `El número del premio "${premioNombre}" debe estar entre ${inicio} y ${fin}` };
+    }
+    if (numerosVistos.has(numero)) {
+      return { error: `Hay dos premios anticipados con el mismo número (${numero})` };
+    }
+    numerosVistos.add(numero);
+    premios.push({ nombre: premioNombre, numero });
+  }
+
   const prisma = await getTenantPrismaClient(session.user.tenantId);
-  await prisma.rifa.create({
-    data: {
-      nombre,
-      descripcion: descripcion || null,
-      precioBoleto,
-      cantidadBoletos,
-      formatoDigitos,
-      creadoPorId: session.user.id,
-    },
+  await prisma.$transaction(async (tx) => {
+    const rifa = await tx.rifa.create({
+      data: {
+        nombre,
+        descripcion: descripcion || null,
+        precioBoleto,
+        cantidadBoletos,
+        formatoDigitos,
+        creadoPorId: session.user.id,
+      },
+    });
+    if (premios.length > 0) {
+      await tx.premioAnticipado.createMany({
+        data: premios.map((p) => ({ rifaId: rifa.id, nombre: p.nombre, numero: p.numero })),
+      });
+    }
   });
 
   revalidatePath("/rifas");
